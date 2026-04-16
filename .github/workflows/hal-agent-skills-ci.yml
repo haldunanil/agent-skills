@@ -1,0 +1,35 @@
+name: Hal Agent Skills CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "packages/hal-agent-skills/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "packages/hal-agent-skills/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/hal-agent-skills
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/hal-agent-skills/package-lock.json
+      - run: npm ci
+      - run: npm run validate
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skill-zips
+          path: skills/*.zip
+          if-no-files-found: error
