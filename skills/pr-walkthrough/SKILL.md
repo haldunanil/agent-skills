@@ -120,7 +120,7 @@ If the file already exists, the dispatched agent in Step 4 will overwrite it. `/
 
 Once the agent returns, report only this single line to the user:
 
-> Walkthrough saved to `/tmp/pr-walkthroughs/PR-{PR_NUMBER}-{SLUG}.md`
+> Walkthrough saved to `/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.md`
 
 Do not include counts, previews, or orientation summaries. The document is the artifact; it speaks for itself.
 
