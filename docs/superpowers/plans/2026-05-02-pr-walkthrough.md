@@ -454,7 +454,7 @@ Append to `walkthrough-prompt.md`:
 
 Group changes into **chapters** by *logical connection*, not by module boundaries. Files in the same chapter do **not** need to live in the same package, directory, or layer — what matters is that they tell one coherent story together. A schema change, the backend handler that uses it, and the frontend hook that consumes it can all belong to one chapter even if they live in three different packages.
 
-A few chapters is usually right; many tiny chapters fragments the narrative. Use judgment — let the code's structure dictate the count, not a target number.
+A few chapters is usually right; many tiny chapters fragment the narrative. Use judgment — let the code's structure dictate the count, not a target number.
 
 Within a chapter, order **sections** so each builds on the previous (foundations first, consumers last). Chapter 1 should be the foundational piece (schema, types, core abstraction); the last chapter should be the outermost layer (UI, integration glue).
 
@@ -536,7 +536,7 @@ Write the document to `{OUTPUT_PATH}` using exactly this structure:
 # PR #{PR_NUMBER}: {PR_TITLE}
 
 **Author:** @{AUTHOR}  •  **Branch:** `{HEAD_BRANCH}` → `{BASE_BRANCH}`  •  **URL:** {URL}
-**Files changed:** N  •  **Commits:** N
+**Files changed:** {FILES_COUNT}  •  **Commits:** {COMMITS_COUNT}
 
 > One to three sentences orienting the reader to what this PR is for. Drawn from
 > the PR body if useful, but rewritten in your own voice — do not copy-paste.
@@ -575,10 +575,13 @@ Summary: what this file does and why it changed. Reference how it fits the chapt
 
 ### `path/to/file-b.tsx` — Component A
 
-Sub-section narrative for one logical unit within file-b.
+Sub-section narrative for one logical unit within file-b. The diff slice keeps its `git diff` headers — even when slicing a single file across multiple sub-sections, never strip `--- a/`, `+++ b/`, or `@@` headers.
 
 ```diff
-… diff slice for the Component A portion …
+--- a/path/to/file-b.tsx
++++ b/path/to/file-b.tsx
+@@ -120,8 +124,12 @@ export function ComponentA(props: ComponentAProps) {
+   …diff lines for just the Component A portion of the file…
 ```
 
 ### `path/to/file-b.tsx` — Component B
@@ -670,7 +673,7 @@ Append to `walkthrough-prompt.md`:
 
 ## 7. Save and stop
 
-After composing the document, save it to `{OUTPUT_PATH}` using your `Write` tool. The directory `/tmp/pr-walkthroughs/` has already been created by the controller; you do not need to create it.
+After composing the document, save it to `{OUTPUT_PATH}` using the `Write` tool. The directory `/tmp/pr-walkthroughs/` has already been created by the controller; you do not need to create it. If the directory does not exist, fail loudly rather than creating it — that indicates a controller bug worth surfacing.
 
 If a file already exists at `{OUTPUT_PATH}`, overwrite it.
 
@@ -681,6 +684,7 @@ Once saved, return only a brief confirmation that the file was written. Do not i
 This contract is non-negotiable:
 
 - You **must not modify any source files** in the repo. The only write you perform is the output document at `{OUTPUT_PATH}`.
+- You **must not write any other file** — no scratch files, no debug logs, no intermediate artifacts, nowhere on disk except `{OUTPUT_PATH}`.
 - You **must not modify the PR** in any way — no comments, no thread resolves, no labels, no review submissions, no merges.
 - You **must not run** any build, install, or formatter command. Only `gh` (read-only subcommands), `git` (read-only subcommands like `diff`, `show`, `log`), `Read`, and `Grep` are appropriate.
 - You **may** use `Bash` for shell pipelines that combine the above (e.g., `gh pr diff $N -- file | wc -l`), but never to mutate state.
@@ -689,7 +693,7 @@ If you find yourself reaching for a tool that mutates anything other than `{OUTP
 
 ## Final reminders
 
-- Every file in the files-changed list must appear in the document (full diff or summarized per Section 2).
+- Every file in the files-changed list must appear in the document — full diff for human-authored code, summarized for lockfiles/generated/binary per Section 2.
 - Diffs are raw `git diff` output. Headers preserved.
 - Chapters are organized by *final state*, not commit order.
 - Pure exploration. No fix recommendations.
