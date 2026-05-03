@@ -8,7 +8,7 @@
 
 **Tech Stack:** Markdown skill files, `gh` CLI (used inside the skill), `npm`/`tsx` build pipeline (already in repo), `zip` CLI (already required by build pipeline).
 
-**Reference:** Approved design at `docs/superpowers/specs/2026-05-02-pr-walkthrough-design.md` (commit `aff7f82`).
+**Reference:** Approved design at `docs/superpowers/specs/2026-05-02-pr-walkthrough-design.md` (commit `f1b4c71`).
 
 ---
 
