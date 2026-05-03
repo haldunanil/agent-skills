@@ -167,6 +167,10 @@ URL=$(echo "$PR_JSON" | jq -r '.url')
 # Pre-format the lists for the prompt template (one entry per line):
 COMMITS_LIST=$(echo "$PR_JSON" | jq -r '.commits[] | "\(.oid[0:7])  \(.messageHeadline)"')
 FILES_LIST=$(echo "$PR_JSON" | jq -r '.files[].path')
+
+# Counts for the output document header:
+COMMITS_COUNT=$(echo "$PR_JSON" | jq -r '.commits | length')
+FILES_COUNT=$(echo "$PR_JSON" | jq -r '.files | length')
 ```
 
 The variables you now have for the prompt template:
@@ -181,6 +185,8 @@ The variables you now have for the prompt template:
 - `OWNER_REPO` — the `owner/repo` string
 - `COMMITS_LIST` — short-sha + headline, one commit per line
 - `FILES_LIST` — file paths, one per line
+- `COMMITS_COUNT` — number of commits
+- `FILES_COUNT` — number of changed files
 
 The full diff is **not** pre-fetched. The agent fetches per-file diffs as it walks through them — this is intentional, to keep the agent prompt small and to scale to large PRs.
 
@@ -248,7 +254,7 @@ Append:
 - **Tool:** `Agent` (or `Task`) with `subagent_type: "general-purpose"`
   - Why `general-purpose` and not `Explore`: the agent must `Write` the output document, and the `Explore` subagent is read-only. The read-only contract for repository files is enforced via the prompt itself, not via subagent capabilities.
 - **Prompt:** Fill the template from `walkthrough-prompt.md` (sibling of this file), substituting these placeholders with the values from Steps 1–3:
-  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{OUTPUT_PATH}`
+  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{COMMITS_COUNT}`, `{FILES_COUNT}`, `{OUTPUT_PATH}`
 
 ### Step 5: Present result
 
