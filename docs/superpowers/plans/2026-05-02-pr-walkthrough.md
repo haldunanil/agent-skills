@@ -132,50 +132,75 @@ Append this content to the end of `SKILL.md`:
 
 ### Step 1: Resolve target PR
 
-If the user passed an argument, use it as the PR number. Otherwise, look up the current branch's open PR:
+First capture the current branch name (used in the failure message and as a fallback PR lookup):
 
 ```bash
-gh pr view --json number,url,baseRefName,headRefName,title,body,author 2>/dev/null
+BRANCH_NAME=$(git branch --show-current)
 ```
 
-- If the user passed a PR number argument, set `PR_NUMBER` to that argument.
-- Otherwise, if the `gh pr view` call succeeds, set `PR_NUMBER` from the `number` field of the JSON.
-- If neither succeeds, fail with: `"No PR found for branch '{BRANCH_NAME}', and no PR number provided. Pass a PR number as an argument."` and **stop**.
+Then resolve `PR_NUMBER`:
+
+- If the user passed a PR number argument, set `PR_NUMBER` to that argument and skip the next step.
+- Otherwise, look up the current branch's open PR:
+
+  ```bash
+  PR_NUMBER=$(gh pr view --json number -q '.number' 2>/dev/null)
+  ```
+
+- If `PR_NUMBER` is still empty after both attempts, fail with: ``"No PR found for branch `${BRANCH_NAME}`, and no PR number provided. Pass a PR number as an argument."`` and **stop**.
 
 ### Step 2: Fetch PR metadata
 
-Once `PR_NUMBER` is known, fetch the metadata the agent needs as its table of contents:
+Once `PR_NUMBER` is known, fetch the metadata the agent needs as its table of contents. Capture the JSON once and extract fields with `jq`:
 
 ```bash
-gh pr view $PR_NUMBER --json number,title,body,baseRefName,headRefName,author,url,commits,files
-gh repo view --json owner,name -q '"\(.owner.login)/\(.name)"'
+PR_JSON=$(gh pr view $PR_NUMBER --json number,title,body,baseRefName,headRefName,author,url,commits,files)
+OWNER_REPO=$(gh repo view --json owner,name -q '"\(.owner.login)/\(.name)"')
+
+PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+PR_BODY=$(echo "$PR_JSON" | jq -r '.body')
+BASE_BRANCH=$(echo "$PR_JSON" | jq -r '.baseRefName')
+HEAD_BRANCH=$(echo "$PR_JSON" | jq -r '.headRefName')
+AUTHOR=$(echo "$PR_JSON" | jq -r '.author.login')
+URL=$(echo "$PR_JSON" | jq -r '.url')
+
+# Pre-format the lists for the prompt template (one entry per line):
+COMMITS_LIST=$(echo "$PR_JSON" | jq -r '.commits[] | "\(.oid[0:7])  \(.messageHeadline)"')
+FILES_LIST=$(echo "$PR_JSON" | jq -r '.files[].path')
 ```
 
-Store these values for the prompt template:
+The variables you now have for the prompt template:
 
-- `PR_NUMBER` — the PR number
+- `PR_NUMBER` — the PR number (from Step 1)
 - `PR_TITLE` — the title
 - `PR_BODY` — the description body (may be empty)
 - `BASE_BRANCH` — `baseRefName`
 - `HEAD_BRANCH` — `headRefName`
 - `AUTHOR` — `author.login`
 - `URL` — the PR URL
-- `OWNER_REPO` — the `owner/repo` string from `gh repo view`
-- `COMMITS_LIST` — the full commits array (each entry has at minimum `oid` and `messageHeadline`)
-- `FILES_LIST` — the full files array (each entry has `path`)
+- `OWNER_REPO` — the `owner/repo` string
+- `COMMITS_LIST` — short-sha + headline, one commit per line
+- `FILES_LIST` — file paths, one per line
 
 The full diff is **not** pre-fetched. The agent fetches per-file diffs as it walks through them — this is intentional, to keep the agent prompt small and to scale to large PRs.
 
 ### Step 3: Compute output path and slug
 
-Slugify `PR_TITLE`:
+Slugify `PR_TITLE` and store the result in `SLUG`:
 
 1. Lowercase
 2. Replace any character that is not `[a-z0-9]` with `-`
 3. Collapse runs of `-` into a single `-`
 4. Trim leading and trailing `-`
-5. Cap at 60 characters (cut, then re-trim trailing `-`)
-6. If the result is empty, use the literal string `untitled`
+5. Cap at 60 characters (cut from the right, then re-trim trailing `-`)
+6. If the result is empty, set `SLUG` to the literal string `untitled`
+
+A reference one-liner:
+
+```bash
+SLUG=$(echo "$PR_TITLE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-60 | sed -E 's/-+$//')
+[ -z "$SLUG" ] && SLUG="untitled"
+```
 
 Then compute the output path:
 
@@ -184,7 +209,7 @@ mkdir -p /tmp/pr-walkthroughs
 OUTPUT_PATH="/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.md"
 ```
 
-If the file already exists, it will be overwritten in Step 4. `/tmp` is ephemeral; re-runs reflect the current PR state.
+If the file already exists, the dispatched agent in Step 4 will overwrite it. `/tmp` is ephemeral; re-runs reflect the current PR state.
 ````
 
 - [ ] **Step 2: Verify the file structure is intact**
