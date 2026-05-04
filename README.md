@@ -27,6 +27,17 @@ Fetches all unresolved review comments on the current branch's PR, classifies th
 - Seeing how many comments are Questions vs Change Requests
 - Quick triage of PR feedback without a full code review
 
+### pr-walkthrough
+
+Generates a structured tour of a GitHub PR — a single markdown document that walks through the final state of the changed code in a digestible order, with every diff embedded inline. Pure exploration (use `comprehensive-review` for evaluation).
+
+**Use when:**
+
+- Onboarding to a PR you didn't write — getting a digestible overview of what's there
+- Coming back to a PR weeks later to remember what it did
+- Reading along during a PR review to build understanding before judging quality
+- Any time `gh pr diff` alone would be too much to skim
+
 ## Installation
 
 **Claude Code:**
