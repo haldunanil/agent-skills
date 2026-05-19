@@ -1,0 +1,39 @@
+name: Manifest Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".claude-plugin/**"
+
+jobs:
+  verify-versions-match:
+    name: Verify plugin.json and marketplace.json versions match
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check versions
+        run: |
+          plugin_version=$(jq -r '.version' .claude-plugin/plugin.json)
+          plugin_name=$(jq -r '.name' .claude-plugin/plugin.json)
+          market_version=$(jq -r --arg name "$plugin_name" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
+
+          if [ -z "$plugin_version" ] || [ "$plugin_version" = "null" ]; then
+            echo "ERROR: .claude-plugin/plugin.json has no version" >&2
+            exit 1
+          fi
+
+          if [ -z "$market_version" ] || [ "$market_version" = "null" ]; then
+            echo "ERROR: .claude-plugin/marketplace.json has no plugin entry named '$plugin_name'" >&2
+            exit 1
+          fi
+
+          if [ "$plugin_version" != "$market_version" ]; then
+            echo "ERROR: version mismatch — plugin.json=$plugin_version, marketplace.json=$market_version" >&2
+            echo "Bump both files to the same version." >&2
+            exit 1
+          fi
+
+          echo "Versions match: $plugin_version"

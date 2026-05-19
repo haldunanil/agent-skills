@@ -1,4 +1,5 @@
 {
+  "$schema": "https://claude.ai/schemas/plugin.json",
   "name": "agent-skills",
   "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
   "version": "1.0.0",
