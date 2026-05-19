@@ -27,7 +27,7 @@ flowchart TB
     D -- yes --> A["Agent A: Fetch + classify PR comments\n(review-pr-comments + receiving-code-review)"]
     D -- no --> W["Warn: no PR found, skip PR comments"]
     D -.->|HAS_PR| C["Agent C: CI watcher\n(general-purpose)"]
-    W --> B["Agent B: Code review\n(superpowers:requesting-code-review)"]
+    S2 --> B["Agent B: Code review\n(superpowers:requesting-code-review)"]
     A --> S4["Step 4: Collect all outputs"]
     B --> S4
     C --> S4
@@ -92,8 +92,8 @@ In a **single message**, dispatch all of the following concurrently:
 
     - DESCRIPTION: {DESCRIPTION}
     - PLAN_OR_REQUIREMENTS: {DESCRIPTION} (use the same description as plan reference; we are reviewing branch work against its stated intent)
-    - BASE_SHA: output of `git merge-base {BASE_BRANCH} HEAD`
-    - HEAD_SHA: output of `git rev-parse HEAD`
+    - BASE_SHA: (execute `git merge-base {BASE_BRANCH} HEAD` and use the resulting SHA)
+    - HEAD_SHA: (execute `git rev-parse HEAD` and use the resulting SHA)
 
   Also read the repo's CLAUDE.md or AGENTS.md if present (project conventions live there), and flag any convention violations in the review output.
 
