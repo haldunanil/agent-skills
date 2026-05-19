@@ -1,0 +1,27 @@
+{
+  "$schema": "https://claude.ai/schemas/marketplace.json",
+  "name": "agent-skills",
+  "description": "Marketplace exposing the agent-skills plugin",
+  "owner": {
+    "name": "Haldun Anil",
+    "email": "haldunanil@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "agent-skills",
+      "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
+      "version": "0.0.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/haldunanil/agent-skills.git"
+      },
+      "author": {
+        "name": "Haldun Anil",
+        "email": "haldunanil@gmail.com"
+      },
+      "homepage": "https://github.com/haldunanil/agent-skills",
+      "repository": "https://github.com/haldunanil/agent-skills",
+      "license": "MIT"
+    }
+  ]
+}

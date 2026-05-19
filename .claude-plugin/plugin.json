@@ -1,0 +1,19 @@
+{
+  "$schema": "https://claude.ai/schemas/plugin.json",
+  "name": "agent-skills",
+  "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
+  "version": "0.0.0",
+  "author": {
+    "name": "Haldun Anil",
+    "email": "haldunanil@gmail.com"
+  },
+  "homepage": "https://github.com/haldunanil/agent-skills",
+  "repository": "https://github.com/haldunanil/agent-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "code-review",
+    "pull-request",
+    "workflows"
+  ]
+}

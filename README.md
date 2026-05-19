@@ -40,7 +40,35 @@ Generates a structured tour of a GitHub PR — a single markdown document that w
 
 ## Installation
 
-**Claude Code:**
+**Claude Code (recommended — install as a plugin):**
+
+```bash
+claude plugin marketplace add haldunanil/agent-skills
+claude plugin install agent-skills@agent-skills
+```
+
+This registers the repo as a marketplace and installs the `agent-skills` plugin from it. Updates land here on `main` (tagged releases) and can be pulled with `claude plugin update`.
+
+**Claude Code (per-project dependency):**
+
+Add to `.claude/settings.json` in the project that needs the skills:
+
+```jsonc
+{
+  "extraKnownMarketplaces": {
+    "agent-skills": {
+      "source": { "source": "github", "repo": "haldunanil/agent-skills" }
+    }
+  },
+  "enabledPlugins": {
+    "agent-skills@agent-skills": true
+  }
+}
+```
+
+Anyone who opens the project in Claude Code will be prompted to install.
+
+**Claude Code (manual copy — legacy):**
 
 ```bash
 cp -r skills/<skill-name> ~/.claude/skills/
@@ -72,6 +100,18 @@ Each skill contains:
 - `scripts/` — helper scripts for automation (optional)
 
 Rule-based skills (many small best-practice rules generated from a `rules/` directory) can be added via the build pipeline in `packages/hal-agent-skills/`. See `AGENTS.md` for details.
+
+## Releasing
+
+This repo uses [changesets](https://github.com/changesets/changesets) for version bumps. To ship a change:
+
+1. Make your changes in a PR.
+2. Run `npm run changeset` and answer the prompts (pick a bump type, write a one-line summary). Commit the generated `.changeset/*.md` with your PR.
+3. Merge the PR.
+
+On push to `main`, the `Release` workflow consumes any pending changesets, bumps `package.json` + both manifests via `scripts/sync-versions.mjs`, generates `CHANGELOG.md`, tags `v<version>`, and cuts a GitHub Release. If there are no pending changesets, nothing happens — your PR ships to `main` and waits for the next changeset-bearing PR to trigger a release.
+
+The `Manifest Check` workflow guards against `plugin.json` and `marketplace.json` versions drifting apart.
 
 ## License
 
