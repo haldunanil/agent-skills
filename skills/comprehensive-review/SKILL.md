@@ -24,10 +24,10 @@ Orchestrates 4 subagents to fetch unresolved PR comments, run automated code rev
 flowchart TB
     S1["Step 1: Get branch name and base branch"] --> S2["Step 2: Find PR for current branch"]
     S2 --> D{"PR exists?"}
-    D -- yes --> A["Agent A: Fetch unresolved PR comments\n(general-purpose)"]
+    D -- yes --> A["Agent A: Fetch + classify PR comments\n(review-pr-comments + receiving-code-review)"]
     D -- no --> W["Warn: no PR found, skip PR comments"]
     D -.->|HAS_PR| C["Agent C: CI watcher\n(general-purpose)"]
-    W --> B["Agent B: Code review\n(superpowers:code-reviewer)"]
+    W --> B["Agent B: Code review\n(superpowers:requesting-code-review)"]
     A --> S4["Step 4: Collect all outputs"]
     B --> S4
     C --> S4
@@ -67,15 +67,39 @@ In a **single message**, dispatch all of the following concurrently:
 
 **If no PR:** Dispatch Agent B and Agent C in one message with two tool calls.
 
-**Agent A** (PR Comments Fetcher):
+**Agent A** (PR Comments Fetcher + Classifier):
 
 - **Tool:** Task with `subagent_type: "general-purpose"`
-- **Prompt:** `Invoke the review-pr-comments skill to fetch all unresolved PR comments for the current branch. Return the complete structured output.`
+- **Prompt:**
+  ```
+  Step 1: Invoke the `review-pr-comments` skill to fetch all unresolved PR comments for the current branch.
+
+  Step 2: Invoke the `superpowers:receiving-code-review` skill and apply its discipline to each comment. For each comment, verify against the codebase (read the actual referenced file/lines) and classify as one of:
+    - `legit-implement` — comment is correct, should be addressed
+    - `needs-clarification` — comment is ambiguous or you can't verify without more info
+    - `push-back` — comment is technically incorrect for this codebase; include technical reasoning
+    - `already-addressed` — already fixed in a later commit on this branch
+
+  Step 3: Return structured output. For each comment include: file:line reference, original comment text, classification, and (if push-back) the technical reasoning. Do not reply on GitHub — this is read-only triage.
+  ```
 
 **Agent B** (Code Reviewer):
 
-- **Tool:** Task with `subagent_type: "superpowers:code-reviewer"` (Claude Code built-in subagent)
-- **Prompt:** Fill the template from `code-review-prompt.md` (see Prompt Templates below), replacing `{BASE_BRANCH}` with the actual base branch and `{DESCRIPTION}` with the PR title + first paragraph of PR body (or the first 5 commit messages if no PR exists)
+- **Tool:** Task with `subagent_type: "general-purpose"`
+- **Prompt:**
+  ```
+  Invoke the `superpowers:requesting-code-review` skill to dispatch a code review. Use these inputs when filling the skill's template:
+
+    - DESCRIPTION: {DESCRIPTION}
+    - PLAN_OR_REQUIREMENTS: {DESCRIPTION} (use the same description as plan reference; we are reviewing branch work against its stated intent)
+    - BASE_SHA: output of `git merge-base {BASE_BRANCH} HEAD`
+    - HEAD_SHA: output of `git rev-parse HEAD`
+
+  Also read `CLAUDE.md` at the repo root if present, and flag any convention violations in the review output.
+
+  Return the reviewer's full output (Strengths, Critical / Important / Minor issues, Recommendations, Assessment).
+  ```
+- Replace `{DESCRIPTION}` with the PR title + first paragraph of PR body (or the first 5 commit messages if no PR exists), and `{BASE_BRANCH}` with the actual base branch.
 
 **Agent C** (CI Watcher):
 
@@ -220,18 +244,23 @@ Suggest: "Use `superpowers:executing-plans` to implement the action plan task-by
 
 ## Prompt Templates
 
-### Agent A: PR Comments Fetcher
+### Agent A: PR Comments Fetcher + Classifier
 
-Agent A uses an inline prompt (no separate template file). It invokes the `review-pr-comments` skill directly. The prompt is specified in Step 3 above.
+Inline prompt (see Step 3). Composes two upstream skills:
+
+- `review-pr-comments` — fetches unresolved PR comments.
+- `superpowers:receiving-code-review` — discipline for evaluating each comment (verify, classify, technical pushback when warranted).
+
+No local template file is needed.
 
 ### Agent B: Code Reviewer
 
-Use the template from the file `code-review-prompt.md` in this skill directory (`.claude/skills/comprehensive-review/code-review-prompt.md`).
+Inline prompt (see Step 3). Delegates to `superpowers:requesting-code-review`, which owns the reviewer prompt template. No local template file is needed — this skill no longer maintains its own copy.
 
-**Placeholders:**
+**Placeholders the controller fills before dispatching Agent B:**
 
-- `{BASE_BRANCH}` - the base branch (from PR or default to main)
-- `{DESCRIPTION}` - PR title + first paragraph of PR body (or first 5 commit messages if no PR)
+- `{BASE_BRANCH}` — the base branch (from PR or default to main)
+- `{DESCRIPTION}` — PR title + first paragraph of PR body (or first 5 commit messages if no PR)
 
 ### Agent C: CI Watcher
 
