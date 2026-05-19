@@ -10,7 +10,7 @@
     {
       "name": "agent-skills",
       "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "source": {
         "source": "url",
         "url": "https://github.com/haldunanil/agent-skills.git"

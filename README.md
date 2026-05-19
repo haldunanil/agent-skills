@@ -101,6 +101,18 @@ Each skill contains:
 
 Rule-based skills (many small best-practice rules generated from a `rules/` directory) can be added via the build pipeline in `packages/hal-agent-skills/`. See `AGENTS.md` for details.
 
+## Releasing
+
+This repo uses [changesets](https://github.com/changesets/changesets) for version bumps. To ship a change:
+
+1. Make your changes in a PR.
+2. Run `npm run changeset` and answer the prompts (pick a bump type, write a one-line summary). Commit the generated `.changeset/*.md` with your PR.
+3. Merge the PR.
+
+On push to `main`, the `Release` workflow consumes any pending changesets, bumps `package.json` + both manifests via `scripts/sync-versions.mjs`, generates `CHANGELOG.md`, tags `v<version>`, and cuts a GitHub Release. If there are no pending changesets, nothing happens — your PR ships to `main` and waits for the next changeset-bearing PR to trigger a release.
+
+The `Manifest Check` workflow guards against `plugin.json` and `marketplace.json` versions drifting apart.
+
 ## License
 
 MIT

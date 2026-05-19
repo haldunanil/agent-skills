@@ -3,8 +3,6 @@ name: Release
 on:
   push:
     branches: [main]
-    paths:
-      - ".claude-plugin/plugin.json"
 
 permissions:
   contents: write
@@ -14,10 +12,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag-and-release:
-    name: Tag and release on version bump
+  release:
+    name: Cut release if changesets present
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,47 +23,69 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read plugin version
-        id: ver
-        run: |
-          version=$(jq -r '.version' .claude-plugin/plugin.json)
-          if [ -z "$version" ] || [ "$version" = "null" ]; then
-            echo "ERROR: plugin.json has no version field" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
 
-      - name: Check if tag already exists
-        id: tag
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect pending changesets
+        id: changeset
         run: |
-          tag="v${{ steps.ver.outputs.version }}"
-          if git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $tag already exists — nothing to do"
+          changesets=$(find .changeset -maxdepth 1 -name '*.md' ! -path '.changeset/README.md' 2>/dev/null | wc -l)
+          echo "count=$changesets" >> "$GITHUB_OUTPUT"
+          if [ "$changesets" -gt 0 ]; then
+            echo "has_changeset=true" >> "$GITHUB_OUTPUT"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Will create tag $tag"
+            echo "has_changeset=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "name=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Exit if no changesets
+        if: steps.changeset.outputs.has_changeset == 'false'
+        run: |
+          echo "No pending changesets — nothing to release"
+          exit 0
 
       - name: Configure git identity
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.changeset.outputs.has_changeset == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create and push tag
-        if: steps.tag.outputs.exists == 'false'
+      - name: Bump version via changeset
+        if: steps.changeset.outputs.has_changeset == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run version
+
+      - name: Read new version
+        if: steps.changeset.outputs.has_changeset == 'true'
+        id: version
         run: |
-          git tag "${{ steps.tag.outputs.name }}"
-          git push origin "${{ steps.tag.outputs.name }}"
+          version=$(jq -r '.version' package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump and tag
+        if: steps.changeset.outputs.has_changeset == 'true'
+        run: |
+          git add -A
+          git commit -m "chore(release): v${{ steps.version.outputs.version }} [skip ci]"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin main
+          git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Create GitHub Release
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.changeset.outputs.has_changeset == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
-          name: ${{ steps.tag.outputs.name }}
-          generate_release_notes: true
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: |
+            ## v${{ steps.version.outputs.version }}
+
+            See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
           draft: false
           prerelease: false
