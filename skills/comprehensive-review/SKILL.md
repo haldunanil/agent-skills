@@ -95,7 +95,7 @@ In a **single message**, dispatch all of the following concurrently:
     - BASE_SHA: output of `git merge-base {BASE_BRANCH} HEAD`
     - HEAD_SHA: output of `git rev-parse HEAD`
 
-  Also read `CLAUDE.md` at the repo root if present, and flag any convention violations in the review output.
+  Also read the repo's CLAUDE.md or AGENTS.md if present (project conventions live there), and flag any convention violations in the review output.
 
   Return the reviewer's full output (Strengths, Critical / Important / Minor issues, Recommendations, Assessment).
   ```
