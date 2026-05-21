@@ -43,11 +43,11 @@ Generates a structured tour of a GitHub PR — a single markdown document that w
 **Claude Code (recommended — install as a plugin):**
 
 ```bash
-claude plugin marketplace add haldunanil/agent-skills
-claude plugin install agent-skills@agent-skills
+claude plugin marketplace add haldunanil/hal-agent-skills
+claude plugin install hal-agent-skills@hal-agent-skills
 ```
 
-This registers the repo as a marketplace and installs the `agent-skills` plugin from it. Updates land here on `main` (tagged releases) and can be pulled with `claude plugin update`.
+This registers the repo as a marketplace and installs the `hal-agent-skills` plugin from it. Updates land here on `main` (tagged releases) and can be pulled with `claude plugin update`.
 
 **Claude Code (per-project dependency):**
 
@@ -56,12 +56,12 @@ Add to `.claude/settings.json` in the project that needs the skills:
 ```jsonc
 {
   "extraKnownMarketplaces": {
-    "agent-skills": {
-      "source": { "source": "github", "repo": "haldunanil/agent-skills" }
+    "hal-agent-skills": {
+      "source": { "source": "github", "repo": "haldunanil/hal-agent-skills" }
     }
   },
   "enabledPlugins": {
-    "agent-skills@agent-skills": true
+    "hal-agent-skills@hal-agent-skills": true
   }
 }
 ```

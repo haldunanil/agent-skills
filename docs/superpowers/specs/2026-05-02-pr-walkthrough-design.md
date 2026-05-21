@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-02
 **Status:** Approved (brainstorming)
-**Repo:** `agent-skills`
+**Repo:** `hal-agent-skills`
 
 ## Purpose
 
