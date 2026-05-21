@@ -1,5 +1,5 @@
 {
-  "name": "agent-skills",
+  "name": "hal-agent-skills",
   "version": "0.1.0",
   "private": true,
   "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
@@ -7,7 +7,7 @@
   "author": "Haldun Anil <haldunanil@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/haldunanil/agent-skills.git"
+    "url": "https://github.com/haldunanil/hal-agent-skills.git"
   },
   "scripts": {
     "changeset": "changeset",
