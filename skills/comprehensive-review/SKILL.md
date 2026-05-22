@@ -1,7 +1,6 @@
 ---
 name: comprehensive-review
 description: Use when finishing work on a branch with an open PR and wanting a thorough review combining unresolved PR comments, automated code review, and a prioritized action plan
-disable-model-invocation: true
 author: adology
 version: 1.0.0
 ---
