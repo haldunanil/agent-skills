@@ -1,5 +1,11 @@
 # hal-agent-skills
 
+## 0.2.1
+
+### Patch Changes
+
+- [#6](https://github.com/haldunanil/hal-agent-skills/pull/6) [`7a0651c`](https://github.com/haldunanil/hal-agent-skills/commit/7a0651c0653200a9cfdf3a2cf37209c4604516af) Thanks [@haldunanil](https://github.com/haldunanil)! - Allow the `comprehensive-review` skill to be invoked by models by removing `disable-model-invocation: true` from its frontmatter.
+
 ## 0.2.0
 
 ### Minor Changes
