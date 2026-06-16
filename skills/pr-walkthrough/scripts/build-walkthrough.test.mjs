@@ -186,6 +186,26 @@ test('renderHtml inlines css, viewer js, and escaped data', () => {
   assert.ok(html.includes('<\\/script>'))
 })
 
+import { readFileSync as readFileSyncT } from 'node:fs'
+import { fileURLToPath as f2u } from 'node:url'
+
+const REAL_ASSETS = path2.join(path2.dirname(f2u(import.meta.url)), '..', 'assets')
+
+test('real template.html contains all three slot tokens', () => {
+  const tpl = readFileSyncT(path2.join(REAL_ASSETS, 'template.html'), 'utf8')
+  for (const slot of [SLOT_STYLES, SLOT_VIEWER, SLOT_DATA]) {
+    assert.ok(tpl.includes(slot), `missing ${slot}`)
+  }
+})
+
+test('real template.html loads CDN libs with SRI on every CDN tag', () => {
+  const tpl = readFileSyncT(path2.join(REAL_ASSETS, 'template.html'), 'utf8')
+  // every CDN <script>/<link> must carry a non-empty sha384 integrity attribute
+  const cdnTags = tpl.match(/<(script|link)[^>]*cdnjs[^>]*>/g) || []
+  assert.ok(cdnTags.length >= 3, 'expected at least 3 CDN tags (hljs css + hljs js + markdown-it)')
+  for (const tag of cdnTags) assert.ok(/integrity="sha384-.+?"/.test(tag), `no SRI on: ${tag}`)
+})
+
 import { buildDocument } from './build-walkthrough.mjs'
 
 test('buildDocument validates, resolves, and renders to HTML', () => {
