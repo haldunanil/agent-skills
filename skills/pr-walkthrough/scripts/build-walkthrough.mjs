@@ -166,7 +166,7 @@ export function resolveSections(data, provider) {
 
 // ---------- inlining / rendering ----------
 export function escapeForScript(s) {
-  return s.replace(/<\/script/gi, '<\\/script')
+  return s.replace(/<\/script/gi, (m) => '<\\/' + m.slice(2))
 }
 
 export function renderHtml(data, { assetsDir }) {

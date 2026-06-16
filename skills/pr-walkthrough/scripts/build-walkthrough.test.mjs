@@ -151,3 +151,37 @@ test('resolveSections does not fetch diffs for lockfile sections', () => {
   resolveSections(d, fakeProvider({}, {}))
   assert.equal(d.chapters[0].sections[0].resolvedDiff, undefined)
 })
+
+import { mkdtempSync, writeFileSync as writeFileSyncT } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path2 from 'node:path'
+import { escapeForScript, renderHtml, SLOT_STYLES, SLOT_VIEWER, SLOT_DATA } from './build-walkthrough.mjs'
+
+function tempAssets() {
+  const dir = mkdtempSync(path2.join(tmpdir(), 'pw-assets-'))
+  writeFileSyncT(path2.join(dir, 'template.html'),
+    `<!DOCTYPE html><html><head>${SLOT_STYLES}</head><body>` +
+    `<script id="walkthrough-data" type="application/json">${SLOT_DATA}</script>${SLOT_VIEWER}</body></html>`)
+  writeFileSyncT(path2.join(dir, 'styles.css'), 'body{color:red}')
+  writeFileSyncT(path2.join(dir, 'viewer.js'), "console.log('viewer')")
+  return dir
+}
+
+test('escapeForScript neutralizes closing script tags', () => {
+  assert.equal(escapeForScript('a</script>b'), 'a<\\/script>b')
+  assert.equal(escapeForScript('x</SCRIPT >y'), 'x<\\/SCRIPT >y')
+})
+
+test('renderHtml inlines css, viewer js, and escaped data', () => {
+  const assetsDir = tempAssets()
+  const data = { hello: 'world', danger: '</script><script>alert(1)</script>' }
+  const html = renderHtml(data, { assetsDir })
+
+  assert.ok(html.includes('<style>'))
+  assert.ok(html.includes('body{color:red}'))
+  assert.ok(html.includes("console.log('viewer')"))
+  assert.ok(html.includes('"hello":"world"'))
+  // the raw closing tag must NOT survive inside the data slot
+  assert.ok(!html.includes('</script><script>alert(1)'))
+  assert.ok(html.includes('<\\/script>'))
+})
