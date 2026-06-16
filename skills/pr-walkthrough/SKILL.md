@@ -1,11 +1,11 @@
 ---
 name: pr-walkthrough
-description: Use when you want a structured tour of a GitHub PR — generates a single document that walks through the final state of the changed code in a digestible order, with all diffs embedded inline. For exploration and understanding, not review (use comprehensive-review for review).
+description: Use when you want a structured tour of a GitHub PR — generates a single self-contained HTML page that walks through the final state of the changed code in a digestible order, with GitHub-style side-by-side diffs. For exploration and understanding, not review (use comprehensive-review for review).
 ---
 
 # PR Walkthrough
 
-Generates a structured "tour" of a GitHub PR — a single markdown document that walks the reader through the final state of the changed code in an order that makes sense, with every diff embedded inline. The reader leaves with (a) enough context to form an opinion on whether the PR should be merged and (b) a durable mental model of what changed and why.
+Generates a structured "tour" of a GitHub PR — a single self-contained HTML page that walks the reader through the final state of the changed code in an order that makes sense, with GitHub-style side-by-side diffs. The reader leaves with (a) enough context to form an opinion on whether the PR should be merged and (b) a durable mental model of what changed and why.
 
 This skill is **pure exploration**, not review. It explains *what the code is and why it's there*; it does not propose changes, score severity, or recommend fixes. For review, use the `comprehensive-review` skill — the two are designed to be run independently and iteratively.
 
@@ -63,6 +63,14 @@ FILES_LIST=$(echo "$PR_JSON" | jq -r '.files[].path')
 # Counts for the output document header:
 COMMITS_COUNT=$(echo "$PR_JSON" | jq -r '.commits | length')
 FILES_COUNT=$(echo "$PR_JSON" | jq -r '.files | length')
+
+# Resolve immutable commit SHAs and make sure they exist locally. This handles
+# fork PRs (head lives on the fork) and stale local refs — diffs are generated
+# from these SHAs, never from possibly-missing or out-of-date local branch names.
+git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null || true
+BASE_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "$BASE_BRANCH")
+git fetch --quiet origin "refs/pull/${PR_NUMBER}/head" 2>/dev/null || true
+HEAD_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "$HEAD_BRANCH")
 ```
 
 The variables you now have for the prompt template:
@@ -70,8 +78,10 @@ The variables you now have for the prompt template:
 - `PR_NUMBER` — the PR number (from Step 1)
 - `PR_TITLE` — the title
 - `PR_BODY` — the description body (may be empty)
-- `BASE_BRANCH` — `baseRefName`
-- `HEAD_BRANCH` — `headRefName`
+- `BASE_BRANCH` — `baseRefName` (display only)
+- `HEAD_BRANCH` — `headRefName` (display only)
+- `BASE_SHA` — immutable base commit, fetched; used for diff generation
+- `HEAD_SHA` — immutable head commit, fetched (fork-safe); used for diff generation
 - `AUTHOR` — `author.login`
 - `URL` — the PR URL
 - `OWNER_REPO` — the `owner/repo` string
@@ -104,23 +114,51 @@ Then compute the output path:
 
 ```bash
 mkdir -p /tmp/pr-walkthroughs
-OUTPUT_PATH="/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.md"
+DATA_PATH="/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.json"
+OUTPUT_PATH="/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.html"
 ```
 
-If the file already exists, the dispatched agent in Step 4 will overwrite it. `/tmp` is ephemeral; re-runs reflect the current PR state.
+The agent writes `DATA_PATH`; the build step (Step 4b) produces `OUTPUT_PATH`. Both are overwritten on re-run. `/tmp` is ephemeral; re-runs reflect the current PR state.
+
+```bash
+# Preflight: the build step needs Node.
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required to build the HTML walkthrough. Install Node.js (>=20) and retry." >&2
+  exit 1
+fi
+```
 
 ### Step 4: Dispatch the agent
 
 - **Tool:** `Agent` (or `Task`) with `subagent_type: "general-purpose"`
   - Why `general-purpose` and not `Explore`: the agent must `Write` the output document, and the `Explore` subagent is read-only. The read-only contract for repository files is enforced via the prompt itself, not via subagent capabilities.
 - **Prompt:** Fill the template from `walkthrough-prompt.md` (sibling of this file), substituting these placeholders with the values from Steps 1–3:
-  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{COMMITS_COUNT}`, `{FILES_COUNT}`, `{OUTPUT_PATH}`
+  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{BASE_SHA}`, `{HEAD_SHA}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{COMMITS_COUNT}`, `{FILES_COUNT}`, `{DATA_PATH}`
+
+### Step 4b: Build the HTML from the agent's JSON
+
+The agent has written pointer JSON to `DATA_PATH`. Resolve it against git and render the self-contained HTML:
+
+```bash
+node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
+  --data "$DATA_PATH" --out "$OUTPUT_PATH" \
+  --base "$BASE_SHA" --head "$HEAD_SHA"
+```
+
+(When running from this repo rather than an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)
+
+- On success the script prints `OUTPUT_PATH`.
+- On a **validation or resolution failure** the script exits non-zero and prints the errors. Re-dispatch the Step 4 agent **once**, appending the printed errors to the prompt with the instruction to fix them and rewrite `DATA_PATH`, then re-run this build. If it fails a second time, **stop** and report the errors to the user — do not hand-edit the JSON.
 
 ### Step 5: Present result
 
-Once the agent returns, report only this single line to the user:
+Once the build succeeds, open the result (macOS) and report a single line:
 
-> Walkthrough saved to `/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.md`
+```bash
+[ "$(uname)" = "Darwin" ] && open "$OUTPUT_PATH" || true
+```
+
+> Walkthrough saved to `/tmp/pr-walkthroughs/PR-${PR_NUMBER}-${SLUG}.html` — open it in a browser.
 
 Do not include counts, previews, or orientation summaries. The document is the artifact; it speaks for itself.
 
@@ -131,8 +169,8 @@ Do not include counts, previews, or orientation summaries. The document is the a
 - Modify any source files in the repo — this skill is read-only with respect to the project tree
 - Modify the PR in any way — no comments, no resolves, no labels, no merges
 - Continue past Step 1 if no PR can be resolved
-- Strip diff headers (`--- a/...`, `+++ b/...`, `@@ -X,Y +A,B @@`) when embedding diffs — the reader needs them to navigate
-- Summarize or elide diffs for files that are not in the excused list (lockfiles, generated derived files, binary files) — see the prompt for the full exception list
+- Transcribe diffs or source code into the agent's JSON — the agent emits **pointers only** (`file` + `lines`); the build step resolves the real code from git
+- Mark a human-authored source file as `lockfile`/`generated`/`binary` to skip its diff — only genuinely excused files (lockfiles, generated derived files, binaries) get a `note` instead of a resolved `normal` diff; see the prompt for the full exception list
 - Replace this skill with `comprehensive-review`. They are independent: this skill explains, that one evaluates
 
 **If the agent fails:**
