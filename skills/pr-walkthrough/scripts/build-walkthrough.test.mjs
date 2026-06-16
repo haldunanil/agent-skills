@@ -96,3 +96,58 @@ test('selectHunks keeps the second hunk when the range targets it', () => {
 test('selectHunks drops all hunks when a range overlaps nothing', () => {
   assert.ok(!/^@@ /m.test(selectHunks(TWO_HUNK_DIFF, [9999, 10000])))
 })
+
+import { resolveSections } from './build-walkthrough.mjs'
+
+function fakeProvider(diffs, codes) {
+  return {
+    fileDiff: (file) => diffs[file] ?? '',
+    showLines: (ref) => codes[ref] ?? '',
+  }
+}
+
+function docWithSection(over = {}) {
+  const d = validData()
+  Object.assign(d.chapters[0].sections[0], over)
+  return d
+}
+
+test('resolveSections embeds the git-exact diff on normal sections', () => {
+  const d = docWithSection({ contexts: [] })
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  assert.equal(d.chapters[0].sections[0].resolvedDiff, TWO_HUNK_DIFF)
+})
+
+test('resolveSections slices when lines is set', () => {
+  const d = docWithSection({ lines: [10, 13], contexts: [] })
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  const sliced = d.chapters[0].sections[0].resolvedDiff
+  assert.ok(sliced.includes('@@ -10,3 +10,4 @@'))
+  assert.ok(!sliced.includes('@@ -120,2 +130,3 @@'))
+})
+
+test('resolveSections throws when a normal file has no diff', () => {
+  const d = docWithSection({ contexts: [] })
+  assert.throws(() => resolveSections(d, fakeProvider({}, {})), /no diff found/)
+})
+
+test('resolveSections throws when lines overlap no hunks', () => {
+  const d = docWithSection({ lines: [9999, 10000], contexts: [] })
+  assert.throws(() => resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {})), /overlap no hunks/)
+})
+
+test('resolveSections embeds context code and throws when empty', () => {
+  const ok = docWithSection({})
+  resolveSections(ok, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'function helper() {}' }))
+  assert.equal(ok.chapters[0].sections[0].contexts[0].resolvedCode, 'function helper() {}')
+
+  const bad = docWithSection({})
+  assert.throws(() => resolveSections(bad, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {})), /resolved to empty/)
+})
+
+test('resolveSections does not fetch diffs for lockfile sections', () => {
+  const d = docWithSection({ file: 'package-lock.json', kind: 'lockfile', note: '12 deps', contexts: [] })
+  // provider would return '' for the lockfile; should not throw because kind!=normal
+  resolveSections(d, fakeProvider({}, {}))
+  assert.equal(d.chapters[0].sections[0].resolvedDiff, undefined)
+})
