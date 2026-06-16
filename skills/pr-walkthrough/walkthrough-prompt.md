@@ -177,7 +177,7 @@ node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
 (From this repo instead of an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)
 
 - Output `ok` → you are done; return a one-line confirmation.
-- Any errors → fix the JSON (a missing field, a wrong `kind`, a `file` with no diff, a `lines` range that overlaps no hunks, a bad context `ref`/`lines`) and re-run until it prints `ok`.
+- Any errors → fix the JSON (a missing field, a wrong `kind`, a `file` with no diff, a `lines` range that overlaps no hunks, a bad context `ref`/`lines`, or **a changed file you left out of every section** — validation enforces full coverage) and re-run until it prints `ok`.
 
 You read `git diff`/`gh pr diff` only to **understand** the code well enough to write narratives — never copy that output into the JSON.
 

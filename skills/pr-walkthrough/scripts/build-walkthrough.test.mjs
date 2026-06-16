@@ -99,10 +99,11 @@ test('selectHunks drops all hunks when a range overlaps nothing', () => {
 
 import { resolveSections } from './build-walkthrough.mjs'
 
-function fakeProvider(diffs, codes) {
+function fakeProvider(diffs, codes, files) {
   return {
     fileDiff: (file) => diffs[file] ?? '',
     showLines: (ref) => codes[ref] ?? '',
+    changedFiles: () => files ?? Object.keys(diffs),
   }
 }
 
@@ -242,4 +243,30 @@ test('end-to-end: builds a self-contained HTML document from the real assets', (
   assert.ok(/markdown-it.*\.min\.js/.test(html))                // CDN markdown-it reference present
   assert.ok(/integrity="sha384-/.test(html))                    // SRI survived inlining
   assert.ok(html.includes('"resolvedDiff"'))                    // normal section was resolved and embedded
+})
+
+import { coverageErrors } from './build-walkthrough.mjs'
+
+test('coverageErrors flags a changed file not covered by any section', () => {
+  const errs = coverageErrors(validData(), fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}, ['src/user.ts', 'src/orphan.ts']))
+  assert.ok(errs.some((e) => e.startsWith('src/orphan.ts')), errs.join('; '))
+})
+
+test('coverageErrors passes when every changed file is covered', () => {
+  assert.deepEqual(coverageErrors(validData(), fakeProvider({}, {}, ['src/user.ts'])), [])
+})
+
+test('buildDocument throws a coverage error when a changed file is uncovered', () => {
+  const assetsDir = tempAssets()
+  assert.throws(
+    () => buildDocument(validData(), {
+      assetsDir,
+      provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'x' }, ['src/user.ts', 'src/missing.ts']),
+    }),
+    (e) => {
+      assert.ok(Array.isArray(e.coverage))
+      assert.ok(e.coverage.some((m) => m.startsWith('src/missing.ts')))
+      return true
+    },
+  )
 })

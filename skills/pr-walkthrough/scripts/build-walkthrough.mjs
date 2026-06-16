@@ -136,10 +136,20 @@ export function selectHunks(diffText, lines) {
 // ---------- referential resolution (layer 2) ----------
 export function gitDiffProvider(base, head) {
   const opts = { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+  const git = (args) => {
+    try {
+      return execFileSync('git', args, opts)
+    } catch (e) {
+      throw new Error(
+        `git ${args.join(' ')} failed — ensure the base/head refs (${base}, ${head}) exist locally; ` +
+        `the controller should pass fetched PR SHAs. ${(e.stderr || e.message || '').toString().trim()}`,
+      )
+    }
+  }
   return {
-    fileDiff: (file) => execFileSync('git', ['diff', `${base}...${head}`, '--', file], opts),
-    showLines: (ref, [a, b]) =>
-      execFileSync('git', ['show', `${base}:${ref}`], opts).split('\n').slice(a - 1, b).join('\n'),
+    fileDiff: (file) => git(['diff', `${base}...${head}`, '--', file]),
+    showLines: (ref, [a, b]) => git(['show', `${base}:${ref}`]).split('\n').slice(a - 1, b).join('\n'),
+    changedFiles: () => git(['diff', '--name-only', `${base}...${head}`]).split('\n').filter(Boolean),
   }
 }
 
@@ -162,6 +172,18 @@ export function resolveSections(data, provider) {
     }
   }
   return data
+}
+
+// layer 3: every changed file in the PR must appear in some section.
+// Only runs when the provider can list changed files (i.e. base/head are known).
+export function coverageErrors(data, provider) {
+  if (typeof provider.changedFiles !== 'function') return []
+  const covered = new Set()
+  for (const ch of data.chapters) for (const s of ch.sections) covered.add(s.file)
+  return provider
+    .changedFiles()
+    .filter((f) => !covered.has(f))
+    .map((f) => `${f}: changed file not covered by any walkthrough section`)
 }
 
 // ---------- inlining / rendering ----------
@@ -190,6 +212,12 @@ export function buildDocument(data, { provider, assetsDir }) {
     throw e
   }
   resolveSections(data, provider)
+  const cov = coverageErrors(data, provider)
+  if (cov.length) {
+    const e = new Error('Coverage failed:\n' + cov.join('\n'))
+    e.coverage = cov
+    throw e
+  }
   return renderHtml(data, { assetsDir })
 }
 
@@ -212,8 +240,11 @@ function main(argv) {
     const data = JSON.parse(readFileSync(args.validate, 'utf8'))
     const errors = validateShape(data)
     if (args.base && args.head && errors.length === 0) {
-      try { resolveSections(data, gitDiffProvider(args.base, args.head)) }
-      catch (e) { errors.push(e.message) }
+      const provider = gitDiffProvider(args.base, args.head)
+      try {
+        resolveSections(data, provider)
+        errors.push(...coverageErrors(data, provider))
+      } catch (e) { errors.push(e.message) }
     }
     if (errors.length) { console.error(errors.join('\n')); process.exit(1) }
     console.log('ok')
