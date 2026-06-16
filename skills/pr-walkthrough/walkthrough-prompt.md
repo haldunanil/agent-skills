@@ -33,16 +33,16 @@ The controller has already resolved this metadata — do **not** re-fetch it:
 
 - **Data path (write your JSON here):** `{DATA_PATH}`
 
-Use the commits list and files list as your **table of contents**. Fetch per-file final-state diffs as you go using either:
+Use the commits list and files list as your **table of contents**. Fetch per-file final-state diffs as you read. Prefer `gh pr diff` (it works for fork PRs and fetches as needed):
 
 ```bash
 gh pr diff {PR_NUMBER} -- <file>
 ```
 
-or
+or, against the exact resolved commits the controller fetched:
 
 ```bash
-git diff {BASE_BRANCH}...{HEAD_BRANCH} -- <file>
+git diff {BASE_SHA}...{HEAD_SHA} -- <file>
 ```
 
 ## 1. Role and framing
@@ -146,7 +146,7 @@ Write a single JSON document to `{DATA_PATH}` with exactly this shape. **Prose f
 
 **Field rules:**
 
-- `sections[].file` — a path that appears in the PR's changed files. For a `normal` section the build step runs `git diff {BASE_BRANCH}...{HEAD_BRANCH} -- <file>`; if it produces no diff, the build fails — so only point at files that actually changed.
+- `sections[].file` — a path that appears in the PR's changed files. For a `normal` section the build step runs `git diff {BASE_SHA}...{HEAD_SHA} -- <file>`; if it produces no diff, the build fails — so only point at files that actually changed.
 - `sections[].unit` — `null`, or a short label when you split one file into multiple sub-sections (e.g. `"Component A"`).
 - `sections[].lines` — `null` to show the whole file's diff, or `[start, end]` (line numbers in the **new** file) to show only the hunks overlapping that range. Use a range when a `unit` covers part of a file.
 - `sections[].kind` — one of:
@@ -171,7 +171,7 @@ Write the JSON to `{DATA_PATH}` with the `Write` tool (overwrite if it exists). 
 
 ```bash
 node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
-  --validate "{DATA_PATH}" --base "{BASE_BRANCH}" --head "{HEAD_BRANCH}"
+  --validate "{DATA_PATH}" --base "{BASE_SHA}" --head "{HEAD_SHA}"
 ```
 
 (From this repo instead of an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)

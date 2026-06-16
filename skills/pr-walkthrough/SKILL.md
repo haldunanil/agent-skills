@@ -63,6 +63,14 @@ FILES_LIST=$(echo "$PR_JSON" | jq -r '.files[].path')
 # Counts for the output document header:
 COMMITS_COUNT=$(echo "$PR_JSON" | jq -r '.commits | length')
 FILES_COUNT=$(echo "$PR_JSON" | jq -r '.files | length')
+
+# Resolve immutable commit SHAs and make sure they exist locally. This handles
+# fork PRs (head lives on the fork) and stale local refs — diffs are generated
+# from these SHAs, never from possibly-missing or out-of-date local branch names.
+git fetch --quiet origin "$BASE_BRANCH" 2>/dev/null || true
+BASE_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "$BASE_BRANCH")
+git fetch --quiet origin "refs/pull/${PR_NUMBER}/head" 2>/dev/null || true
+HEAD_SHA=$(git rev-parse FETCH_HEAD 2>/dev/null || echo "$HEAD_BRANCH")
 ```
 
 The variables you now have for the prompt template:
@@ -70,8 +78,10 @@ The variables you now have for the prompt template:
 - `PR_NUMBER` — the PR number (from Step 1)
 - `PR_TITLE` — the title
 - `PR_BODY` — the description body (may be empty)
-- `BASE_BRANCH` — `baseRefName`
-- `HEAD_BRANCH` — `headRefName`
+- `BASE_BRANCH` — `baseRefName` (display only)
+- `HEAD_BRANCH` — `headRefName` (display only)
+- `BASE_SHA` — immutable base commit, fetched; used for diff generation
+- `HEAD_SHA` — immutable head commit, fetched (fork-safe); used for diff generation
 - `AUTHOR` — `author.login`
 - `URL` — the PR URL
 - `OWNER_REPO` — the `owner/repo` string
@@ -123,7 +133,7 @@ fi
 - **Tool:** `Agent` (or `Task`) with `subagent_type: "general-purpose"`
   - Why `general-purpose` and not `Explore`: the agent must `Write` the output document, and the `Explore` subagent is read-only. The read-only contract for repository files is enforced via the prompt itself, not via subagent capabilities.
 - **Prompt:** Fill the template from `walkthrough-prompt.md` (sibling of this file), substituting these placeholders with the values from Steps 1–3:
-  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{COMMITS_COUNT}`, `{FILES_COUNT}`, `{DATA_PATH}`
+  - `{PR_NUMBER}`, `{PR_TITLE}`, `{PR_BODY}`, `{BASE_BRANCH}`, `{HEAD_BRANCH}`, `{BASE_SHA}`, `{HEAD_SHA}`, `{AUTHOR}`, `{URL}`, `{OWNER_REPO}`, `{COMMITS_LIST}` (formatted as one `sha  headline` per line), `{FILES_LIST}` (formatted as one path per line), `{COMMITS_COUNT}`, `{FILES_COUNT}`, `{DATA_PATH}`
 
 ### Step 4b: Build the HTML from the agent's JSON
 
@@ -132,7 +142,7 @@ The agent has written pointer JSON to `DATA_PATH`. Resolve it against git and re
 ```bash
 node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
   --data "$DATA_PATH" --out "$OUTPUT_PATH" \
-  --base "$BASE_BRANCH" --head "$HEAD_BRANCH"
+  --base "$BASE_SHA" --head "$HEAD_SHA"
 ```
 
 (When running from this repo rather than an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)
