@@ -73,8 +73,9 @@ a:hover { text-decoration: underline; }
 
 table.diff { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; font-size: 12.5px; }
 table.diff td { vertical-align: top; padding: 0 8px; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+table.diff col.c-gutter { width: 52px; }
 table.diff td.lno, table.diff td.rno {
-  width: 1%; min-width: 44px; text-align: right; color: var(--muted); user-select: none;
+  text-align: right; color: var(--muted); user-select: none;
   border-right: 1px solid var(--border); padding: 0 6px;
 }
 table.diff td.lc { border-right: 1px solid var(--border); }

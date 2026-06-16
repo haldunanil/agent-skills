@@ -73,6 +73,13 @@
 
   function buildDiff(diffText, lang) {
     var table = el('table', 'diff')
+    // colgroup pins the gutter widths under table-layout:fixed (the first row is a
+    // colspan'd hunk separator, so per-cell widths alone are ignored).
+    var cg = document.createElement('colgroup')
+    ;['c-gutter', 'c-code', 'c-gutter', 'c-code'].forEach(function (c) {
+      var col = document.createElement('col'); col.className = c; cg.appendChild(col)
+    })
+    table.appendChild(cg)
     var lines = diffText.split('\n')
     var i = 0
     while (i < lines.length && lines[i].slice(0, 2) !== '@@') i++
