@@ -5,7 +5,7 @@ description: Use when you want a structured tour of a GitHub PR — generates a 
 
 # PR Walkthrough
 
-Generates a structured "tour" of a GitHub PR — a single markdown document that walks the reader through the final state of the changed code in an order that makes sense, with every diff embedded inline. The reader leaves with (a) enough context to form an opinion on whether the PR should be merged and (b) a durable mental model of what changed and why.
+Generates a structured "tour" of a GitHub PR — a single self-contained HTML page that walks the reader through the final state of the changed code in an order that makes sense, with GitHub-style side-by-side diffs. The reader leaves with (a) enough context to form an opinion on whether the PR should be merged and (b) a durable mental model of what changed and why.
 
 This skill is **pure exploration**, not review. It explains *what the code is and why it's there*; it does not propose changes, score severity, or recommend fixes. For review, use the `comprehensive-review` skill — the two are designed to be run independently and iteratively.
 
@@ -159,9 +159,8 @@ Do not include counts, previews, or orientation summaries. The document is the a
 - Modify any source files in the repo — this skill is read-only with respect to the project tree
 - Modify the PR in any way — no comments, no resolves, no labels, no merges
 - Continue past Step 1 if no PR can be resolved
-- Strip diff headers (`--- a/...`, `+++ b/...`, `@@ -X,Y +A,B @@`) when embedding diffs — the reader needs them to navigate
 - Transcribe diffs or source code into the agent's JSON — the agent emits **pointers only** (`file` + `lines`); the build step resolves the real code from git
-- Summarize or elide diffs for files that are not in the excused list (lockfiles, generated derived files, binary files) — see the prompt for the full exception list
+- Mark a human-authored source file as `lockfile`/`generated`/`binary` to skip its diff — only genuinely excused files (lockfiles, generated derived files, binaries) get a `note` instead of a resolved `normal` diff; see the prompt for the full exception list
 - Replace this skill with `comprehensive-review`. They are independent: this skill explains, that one evaluates
 
 **If the agent fails:**

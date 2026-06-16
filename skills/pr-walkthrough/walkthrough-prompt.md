@@ -77,26 +77,21 @@ Within a chapter, order **sections** so each builds on the previous (foundations
 
 Split a single file into **sub-sections** when it contains distinct logical units (e.g., 5 React components in one file, or schema + helpers + handler in one route file). Heuristic: split when distinct readers would care about distinct parts; do not split for cosmetic groupings.
 
-Sub-section headings use the pattern: `` ### `path/to/file` — Unit name `` (backticks around the path, em-dash, then the unit name).
+Express a sub-section in the JSON by adding another section with the **same `file`** and a `unit` label (e.g. `"unit": "Component A"`), plus a `lines` range selecting that unit's portion of the file. The viewer renders the unit name in the section header.
 
 ## 4. External context (unchanged code)
 
-When a name in the diff is **opaque** (e.g., `mySuperFancyWorkflow` rather than `formatHumanReadableDate`), or when **surrounding unchanged code** is genuinely needed to understand a change, fetch the relevant lines with `Read` or `Grep` and quote them in a `> Context (unchanged):` callout.
+When a name in a diff is **opaque** (e.g., `mySuperFancyWorkflow` rather than `formatHumanReadableDate`), or when **surrounding unchanged code** is genuinely needed to understand a change, add a **context pointer** to that section's `contexts` array — do **not** quote the code yourself. The build step reads those lines from the base revision and shows them, clearly marked as unchanged.
 
-- Do **not** pull context for self-explanatory names.
-- Do **not** pull more than needed — a few lines of the relevant function, not the whole file.
-- Mark all such code clearly as **unchanged context**, not part of the PR.
+A context pointer looks like:
 
-Example:
-
-```markdown
-> **Context (unchanged):** `path/to/helper.ts:42–58` — `mySuperFancyWorkflow` is invoked below. It coordinates the X/Y/Z lifecycle by calling each subsystem in sequence.
-> ```ts
-> export function mySuperFancyWorkflow(input: Foo): Bar {
->   // …a few lines of the actual unchanged code…
-> }
-> ```
+```json
+{ "ref": "path/to/helper.ts", "lines": [42, 58], "note": "Markdown — why this unchanged code matters." }
 ```
+
+- Do **not** add context for self-explanatory names.
+- Keep `lines` tight — a few lines of the relevant function, not the whole file.
+- The `note` is your explanation; the code itself is resolved from git, so never paste source into the JSON.
 
 ## 5. Pure exploration, not review
 
