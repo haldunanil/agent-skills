@@ -1,5 +1,13 @@
 # hal-agent-skills
 
+## 0.3.0
+
+### Minor Changes
+
+- [#9](https://github.com/haldunanil/hal-agent-skills/pull/9) [`904fbcf`](https://github.com/haldunanil/hal-agent-skills/commit/904fbcffeb6655b8918249a6e859ed7deb310a48) Thanks [@haldunanil](https://github.com/haldunanil)! - **pr-walkthrough now generates a self-contained HTML viewer** instead of a markdown file. Each changed file renders as a GitHub-style side-by-side diff with markdown narratives, syntax highlighting, a chapter sidebar, and collapsible sections.
+
+  Under the hood, the walkthrough agent writes a compact pointer JSON (prose + `file`/`lines` pointers, never copied diffs); a stdlib-only Node build step resolves the real diffs from `gh pr diff` — correct for open, merged, and fork PRs — and inlines a reusable, versioned UI (highlight.js + markdown-it via pinned CDNs) into one file you open in a browser. Validation enforces full changed-file coverage, rename/header-only diffs render their metadata, and CI now runs the `node:test` suite.
+
 ## 0.2.1
 
 ### Patch Changes

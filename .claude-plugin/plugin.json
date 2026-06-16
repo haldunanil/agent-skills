@@ -2,7 +2,7 @@
   "$schema": "https://claude.ai/schemas/plugin.json",
   "name": "hal-agent-skills",
   "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": {
     "name": "Haldun Anil",
     "email": "haldunanil@gmail.com"

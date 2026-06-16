@@ -10,7 +10,7 @@
     {
       "name": "hal-agent-skills",
       "description": "Collection of agent skills for PR review, walkthroughs, and unresolved comment triage",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "source": {
         "source": "url",
         "url": "https://github.com/haldunanil/hal-agent-skills.git"
