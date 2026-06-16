@@ -1,6 +1,6 @@
 # PR Walkthrough Agent
 
-You are generating a structured tour of PR #{PR_NUMBER}. The output is a single markdown document that walks a reader through the final state of the changed code in a digestible order, with all diffs embedded inline.
+You are generating a structured tour of PR #{PR_NUMBER}. Your output is a **pointer JSON document** written to `{DATA_PATH}`. You decide the narrative and where each change lives (file + line range); a separate deterministic build step resolves those pointers to git-exact diffs and renders the HTML. You never write HTML, never style anything, and never copy diff or source text into the JSON.
 
 ## Provided Context
 
@@ -31,7 +31,7 @@ The controller has already resolved this metadata — do **not** re-fetch it:
 {FILES_LIST}
 ```
 
-- **Output path:** `{OUTPUT_PATH}`
+- **Data path (write your JSON here):** `{DATA_PATH}`
 
 Use the commits list and files list as your **table of contents**. Fetch per-file final-state diffs as you go using either:
 
@@ -54,26 +54,18 @@ You are walking a reader through PR #{PR_NUMBER} so they can:
 
 The walkthrough is organized by the **final state** of the code — commits are incidental — so the reader builds a mental model of the resulting system, not a chronology of how it was built.
 
-## 2. Hard constraint: every changed file appears in the document
+## 2. Hard constraint: every changed file appears as a section
 
-Every chapter and section MUST contain BOTH:
+Every chapter and section MUST contain a **narrative** explaining what the code does and why it's there. This is the value-add — diffs alone do not teach.
 
-- A **summary** explaining what the code does and why it's there. This is the value-add — diffs alone do not teach.
-- The **full final-state diff** for the relevant code, with file paths and line numbers preserved.
+Every file in the files-changed list must appear as a section in the JSON. Use `kind` to indicate how the build step should handle each file:
 
-Embed the raw `git diff` output in a fenced ` ```diff ` block. **Do NOT** strip the `--- a/...`, `+++ b/...`, or `@@ -X,Y +A,B @@` headers — these are how the reader navigates back to the source.
+- `normal` — human-authored source files. The build step embeds the diff via the pointer; you write **only** the `file` path (and optionally `lines`), never the diff text.
+- `lockfile` — lockfiles (e.g. `package-lock.json`, `yarn.lock`, `Cargo.lock`). Set `note` to the churn summary; no diff.
+- `generated` — a file mechanically derived from another in the PR. Set `note` and `derivedFrom`; no diff. Common patterns: drizzle `meta/*.json`, GraphQL/OpenAPI codegen outputs, `*.gen.ts` / `*.generated.ts`, build artifacts.
+- `binary` — images/fonts/compiled blobs. Set `note` (include a `git diff --stat` line if useful); no diff.
 
-Before saving the document, verify that **every file path in the files list above appears in the document**, either inside a diff block or in a summarized exception (see below).
-
-### Excused from full-diff embedding — summarize only
-
-These files appear in the document, but only as a one-line summary, not as a full diff. Counting them as "appears in the document" satisfies the constraint above.
-
-- **Lockfiles** — always, regardless of churn size. Examples: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`, `Cargo.lock`, `composer.lock`, `Gemfile.lock`, `poetry.lock`. Note the churn ("12 deps added, 3 updated") but do not embed the diff.
-- **Generated files derived from another file in the PR.** When one file in the PR mechanically derives from another (e.g., drizzle `schema.ts` → `migration.sql` → `meta/NNNN_snapshot.json` + `meta/_journal.json`), the human-authored source gets the full diff treatment and the generated artifact(s) get a one-line summary noting the derivation. Common patterns: drizzle `meta/*.json`, GraphQL/OpenAPI codegen outputs, `*.gen.ts` / `*.generated.ts`, build artifacts under `dist/` / `build/` / `__generated__/`. **Principle:** *if reading the source tells you everything the generated file conveys, the generated file's diff is noise.*
-- **Binary files** — images, fonts, compiled blobs. Note the change exists, include a `git diff --stat` line for it, skip the body.
-
-When grouping a generated file under its source, both still get sections — the source gets the full diff, the generated artifact gets a one-line "generated from `path/to/source` — N lines added/removed" note.
+**Do not copy diff text or source code into the JSON.** The pointer (`file` + optional `lines`) is the only reference to changed code; the build step resolves it from git.
 
 ## 3. Decomposition heuristics: chapters, sections, sub-sections
 
@@ -118,141 +110,99 @@ If something is genuinely surprising or unusual, you may flag it as **worth unde
 
 Code review is handled by a separate skill (`comprehensive-review`). The two skills are run independently and iteratively; do not duplicate that skill's work.
 
-## 6. Output document format
+## 6. Output: the pointer JSON
 
-Write the document to `{OUTPUT_PATH}` using exactly this structure:
+Write a single JSON document to `{DATA_PATH}` with exactly this shape. **Prose field values are markdown** (bold/italic, inline code, bullet lists, sub-headings). Do **not** put raw HTML in prose. Do **not** put any diff or source code in the JSON — only pointers.
 
-````markdown
-# PR #{PR_NUMBER}: {PR_TITLE}
-
-**Author:** @{AUTHOR}  •  **Branch:** `{HEAD_BRANCH}` → `{BASE_BRANCH}`  •  **URL:** {URL}
-**Files changed:** {FILES_COUNT}  •  **Commits:** {COMMITS_COUNT}
-
-> One to three sentences orienting the reader to what this PR is for. Drawn from
-> the PR body if useful, but rewritten in your own voice — do not copy-paste.
-
-## Contents
-
-1. [Chapter 1 title](#chapter-1-title)
-2. [Chapter 2 title](#chapter-2-title)
-   …
-- [Cross-cutting concerns](#cross-cutting-concerns)
-- [Open questions for the author](#open-questions-for-the-author)
-- [Commit map](#commit-map)
-
----
-
-## Chapter 1: <Concept name>
-
-Two to four sentences explaining what concept this chapter covers and why it
-comes first — what foundation it lays for later chapters.
-
-### `path/to/file-a.ts`
-
-Summary: what this file does and why it changed. Reference how it fits the chapter's concept.
-
-> **Context (unchanged):** `path/to/helper.ts:42–58` — `mySuperFancyWorkflow` is invoked below. It does X by Y.
-> ```ts
-> // …a few lines of unchanged code, quoted only where relevant…
-> ```
-
-```diff
---- a/path/to/file-a.ts
-+++ b/path/to/file-a.ts
-@@ -10,5 +12,7 @@
- …full final-state diff for this file…
+```jsonc
+{
+  "pr": {
+    "number": {PR_NUMBER}, "repo": "{OWNER_REPO}", "title": "{PR_TITLE}",
+    "author": "{AUTHOR}", "headBranch": "{HEAD_BRANCH}", "baseBranch": "{BASE_BRANCH}",
+    "url": "{URL}", "filesCount": {FILES_COUNT}, "commitsCount": {COMMITS_COUNT}
+  },
+  "summary": "Markdown — 1–3 sentences orienting the reader (your own voice).",
+  "chapters": [
+    {
+      "id": "kebab-slug",
+      "title": "Concept name",
+      "intro": "Markdown — 2–4 sentences: what this chapter covers and why it comes here.",
+      "sections": [
+        {
+          "file": "path/to/file.ts",
+          "unit": null,
+          "lines": null,
+          "kind": "normal",
+          "narrative": "Markdown — what this code does and why it changed.",
+          "contexts": [
+            { "ref": "path/to/helper.ts", "lines": [42, 58], "note": "Markdown — why this unchanged code matters." }
+          ]
+        }
+      ]
+    }
+  ],
+  "crossCutting": "Markdown — observational notes across chapters (use a bullet list).",
+  "openQuestions": "Markdown — genuine questions for the author (use a bullet list).",
+  "commitMap": [
+    { "sha": "abc1234", "message": "headline", "chapters": ["Concept name"] }
+  ]
+}
 ```
 
-### `path/to/file-b.tsx` — Component A
+**Field rules:**
 
-Sub-section narrative for one logical unit within file-b. The diff slice keeps its `git diff` headers — even when slicing a single file across multiple sub-sections, never strip `--- a/`, `+++ b/`, or `@@` headers.
+- `sections[].file` — a path that appears in the PR's changed files. For a `normal` section the build step runs `git diff {BASE_BRANCH}...{HEAD_BRANCH} -- <file>`; if it produces no diff, the build fails — so only point at files that actually changed.
+- `sections[].unit` — `null`, or a short label when you split one file into multiple sub-sections (e.g. `"Component A"`).
+- `sections[].lines` — `null` to show the whole file's diff, or `[start, end]` (line numbers in the **new** file) to show only the hunks overlapping that range. Use a range when a `unit` covers part of a file.
+- `sections[].kind` — one of:
+  - `normal` — the build step embeds the (optionally sliced) diff. No `note`.
+  - `lockfile` — lockfiles (e.g. `package-lock.json`, `yarn.lock`, `Cargo.lock`). No diff; set `note` to the churn summary (e.g. `"12 deps added, 3 updated"`).
+  - `generated` — a file mechanically derived from another in the PR. No diff; set `note` and `derivedFrom` (the human-authored source path).
+  - `binary` — images/fonts/blobs. No diff; set `note` (include a `git diff --stat` line if useful).
+- `sections[].contexts` — optional pointers to **unchanged** code worth quoting. Each needs `ref`, `lines` `[start,end]`, and a markdown `note`. The build step reads those lines from the base revision.
+- `crossCutting` / `openQuestions` — single markdown strings (write them as bullet lists). Observational, not fix recommendations.
 
-```diff
---- a/path/to/file-b.tsx
-+++ b/path/to/file-b.tsx
-@@ -120,8 +124,12 @@ export function ComponentA(props: ComponentAProps) {
-   …diff lines for just the Component A portion of the file…
+Every file in the files-changed list must appear as a section (full diff for `normal`; a `note` for `lockfile`/`generated`/`binary`). Organize chapters by **final state**, not commit order. Split a file into multiple sub-sections (same `file`, different `unit` + `lines`) only when distinct readers care about distinct parts.
+
+### Edge cases
+
+- **Empty PR** (zero files/commits) — write `{ "pr": {...}, "summary": "...", "chapters": [], "crossCutting": "", "openQuestions": "", "commitMap": [] }` and stop. The viewer renders an empty state.
+- **Deleted / renamed files** — point a `normal` section at the path; the resolved diff encodes the deletion/rename.
+- **Huge PRs** — no special handling; pointers keep your output small regardless of diff size.
+
+## 7. Save, self-validate, and stop
+
+Write the JSON to `{DATA_PATH}` with the `Write` tool (overwrite if it exists). Then validate it — both shape and that every pointer resolves against git:
+
+```bash
+node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
+  --validate "{DATA_PATH}" --base "{BASE_BRANCH}" --head "{HEAD_BRANCH}"
 ```
 
-### `path/to/file-b.tsx` — Component B
+(From this repo instead of an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)
 
-… and so on …
+- Output `ok` → you are done; return a one-line confirmation.
+- Any errors → fix the JSON (a missing field, a wrong `kind`, a `file` with no diff, a `lines` range that overlaps no hunks, a bad context `ref`/`lines`) and re-run until it prints `ok`.
 
----
-
-## Chapter 2: <Concept name>
-
-Narrative explaining how this builds on Chapter 1.
-
-… sections and diffs …
-
----
-
-## Cross-cutting concerns
-
-Bullet list of things the reader should hold in mind across chapters — patterns
-that recur, conventions newly introduced, surfaces that touch multiple chapters.
-**Observational, not prescriptive — not fix recommendations.**
-
-- …
-
-## Open questions for the author
-
-Bullet list of genuine "I'd want to ask the author about this" items the reader
-might raise in review. Framed as questions, not complaints.
-
-- …
-
-## Commit map
-
-| SHA       | Message              | Chapters |
-|-----------|----------------------|----------|
-| `abc1234` | Add auth schema      | 1        |
-| `def5678` | Wire up handler      | 2        |
-| …         |                      |          |
-````
-
-### Notes on the template
-
-- Diff blocks are raw `git diff` output. Do not reformat them. File paths and `@@` line numbers stay as-is so the reader can jump to the source in their editor.
-- "Context (unchanged)" callouts use a blockquote prefix (`> `) and are explicitly labeled **unchanged**. Use them only when external context is genuinely needed (see Section 4).
-- Sub-sections within a single file use the heading pattern `` ### `path/to/file` — Unit name ``.
-- "Cross-cutting concerns" and "Open questions for the author" are observational, matching the "pure exploration, not review" boundary in Section 5.
-- If the PR has zero commits or zero files changed, write a minimal document explaining that the PR is empty, no chapters needed, and stop. Do not fabricate content.
-
-### Edge cases to handle
-
-- **Deleted files** — the diff naturally shows a deletion. The narrative explains why and what (if anything) replaces them.
-- **Renamed/moved files** — `git diff` shows rename + content delta. The narrative notes the move and reason.
-- **Binary files** — section exists for the file with a note that it is binary, includes a `git diff --stat` line for it, skips the diff body (see Section 2 exception list).
-- **Lockfiles** — always summarized, never embedded (see Section 2 exception list).
-- **Generated derived files** — grouped under their human-authored source's chapter when the relationship is clear; one-line summary noting the derivation (see Section 2 exception list).
-- **Genuinely huge PRs** (100+ files, 50k+ diff lines) — no special chunking. Per-file fetching keeps your context manageable; the output document has no size limit.
-
-## 7. Save and stop
-
-After composing the document, save it to `{OUTPUT_PATH}` using the `Write` tool. The directory `/tmp/pr-walkthroughs/` has already been created by the controller; you do not need to create it. If the directory does not exist, fail loudly rather than creating it — that indicates a controller bug worth surfacing.
-
-If a file already exists at `{OUTPUT_PATH}`, overwrite it.
-
-Once saved, return only a brief confirmation that the file was written. Do not include counts, summaries of what's inside, or any preview of the document. The user will read the file directly.
+You read `git diff`/`gh pr diff` only to **understand** the code well enough to write narratives — never copy that output into the JSON.
 
 ## 8. Read-only contract
 
 This contract is non-negotiable:
 
-- You **must not modify any source files** in the repo. The only write you perform is the output document at `{OUTPUT_PATH}`.
-- You **must not write any other file** — no scratch files, no debug logs, no intermediate artifacts, nowhere on disk except `{OUTPUT_PATH}`.
+- You **must not modify any source files** in the repo. The only write you perform is the pointer JSON at `{DATA_PATH}`.
+- You **must not write any other file** — nowhere on disk except `{DATA_PATH}`.
 - You **must not modify the PR** in any way — no comments, no thread resolves, no labels, no review submissions, no merges.
 - You **must not run** any build, install, or formatter command. Only `gh` (read-only subcommands), `git` (read-only subcommands like `diff`, `show`, `log`), `Read`, and `Grep` are appropriate.
 - You **may** use `Bash` for shell pipelines that combine the above (e.g., `gh pr diff $N -- file | wc -l`), but never to mutate state.
 
-If you find yourself reaching for a tool that mutates anything other than `{OUTPUT_PATH}`, stop and reconsider — you have likely misread the task.
+If you find yourself reaching for a tool that mutates anything other than `{DATA_PATH}`, stop and reconsider — you have likely misread the task.
 
 ## Final reminders
 
-- Every file in the files-changed list must appear in the document — full diff for human-authored code, summarized for lockfiles/generated/binary per Section 2.
-- Diffs are raw `git diff` output. Headers preserved.
-- Chapters are organized by *final state*, not commit order.
+- Output is **pointer JSON** at `{DATA_PATH}` — no HTML, no styling, no copied diffs.
+- Every changed file appears as a section; `normal` gets a diff via its pointer, lockfile/generated/binary get a `note`.
+- Prose values are markdown; no raw HTML.
+- Chapters organized by *final state*, not commit order.
 - Pure exploration. No fix recommendations.
-- Save to `{OUTPUT_PATH}` and stop.
+- Self-validate with `--validate` until it prints `ok`, then stop.
