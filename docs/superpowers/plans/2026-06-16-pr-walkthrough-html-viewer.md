@@ -29,7 +29,6 @@
 - `assets/template.html` — HTML skeleton: pinned CDN `<link>`/`<script>` for highlight.js + markdown-it (with SRI), plus three slot tokens.
 - `assets/styles.css` — Layout A theme (sidebar, sticky headers, split-diff coloring, markdown prose).
 - `assets/viewer.js` — browser renderer: data → DOM, unified→split diff tables, markdown, lazy highlight, sidebar nav, collapse.
-- `test/fixture.json` — sample pointer JSON used by the integration test and manual verification.
 
 **Modified files:**
 - `SKILL.md` — controller: compute `.json` + `.html` paths, add the build step, preflight `node`, update Red Flags.
@@ -219,7 +218,7 @@ This is the one genuinely non-trivial bit of resolver logic: given a file's unif
 Append to `skills/pr-walkthrough/scripts/build-walkthrough.test.mjs`:
 
 ```js
-import { parseHunkHeader, selectHunks, countHunks } from './build-walkthrough.mjs'
+import { parseHunkHeader, selectHunks } from './build-walkthrough.mjs'
 
 const TWO_HUNK_DIFF = [
   'diff --git a/src/user.ts b/src/user.ts',
@@ -252,7 +251,6 @@ test('selectHunks(null) returns the whole diff unchanged', () => {
 
 test('selectHunks keeps only the hunk overlapping the new-file range', () => {
   const sliced = selectHunks(TWO_HUNK_DIFF, [10, 13])
-  assert.equal(countHunks(sliced), 1)
   assert.ok(sliced.includes('@@ -10,3 +10,4 @@'))
   assert.ok(!sliced.includes('@@ -120,2 +130,3 @@'))
   // file header is preserved so the slice is still a valid diff
@@ -262,19 +260,19 @@ test('selectHunks keeps only the hunk overlapping the new-file range', () => {
 
 test('selectHunks keeps the second hunk when the range targets it', () => {
   const sliced = selectHunks(TWO_HUNK_DIFF, [130, 132])
-  assert.equal(countHunks(sliced), 1)
   assert.ok(sliced.includes('@@ -120,2 +130,3 @@'))
+  assert.ok(!sliced.includes('@@ -10,3 +10,4 @@'))
 })
 
-test('countHunks returns 0 when a range overlaps nothing', () => {
-  assert.equal(countHunks(selectHunks(TWO_HUNK_DIFF, [9999, 10000])), 0)
+test('selectHunks drops all hunks when a range overlaps nothing', () => {
+  assert.ok(!/^@@ /m.test(selectHunks(TWO_HUNK_DIFF, [9999, 10000])))
 })
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs`
-Expected: FAIL — `parseHunkHeader`/`selectHunks`/`countHunks` are not exported yet.
+Expected: FAIL — `parseHunkHeader`/`selectHunks` are not exported yet.
 
 - [ ] **Step 3: Write the minimal implementation**
 
@@ -289,10 +287,6 @@ export function parseHunkHeader(line) {
     oldStart: +m[1], oldLen: m[2] === undefined ? 1 : +m[2],
     newStart: +m[3], newLen: m[4] === undefined ? 1 : +m[4],
   }
-}
-
-export function countHunks(diffText) {
-  return (diffText.match(/^@@ /gm) || []).length
 }
 
 function splitDiff(diffText) {
@@ -381,7 +375,9 @@ test('resolveSections embeds the git-exact diff on normal sections', () => {
 test('resolveSections slices when lines is set', () => {
   const d = docWithSection({ lines: [10, 13], contexts: [] })
   resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
-  assert.equal(countHunks(d.chapters[0].sections[0].resolvedDiff), 1)
+  const sliced = d.chapters[0].sections[0].resolvedDiff
+  assert.ok(sliced.includes('@@ -10,3 +10,4 @@'))
+  assert.ok(!sliced.includes('@@ -120,2 +130,3 @@'))
 })
 
 test('resolveSections throws when a normal file has no diff', () => {
@@ -447,7 +443,8 @@ export function resolveSections(data, provider) {
         const raw = provider.fileDiff(s.file)
         if (!raw || !raw.trim()) throw new Error(`${s.file}: kind=normal but no diff found in this PR`)
         const sliced = s.lines ? selectHunks(raw, s.lines) : raw
-        if (s.lines && countHunks(sliced) === 0) throw new Error(`${s.file}: lines [${s.lines}] overlap no hunks`)
+        // a sliced diff with no `@@ ` hunk header means the range matched nothing
+        if (s.lines && !/^@@ /m.test(sliced)) throw new Error(`${s.file}: lines [${s.lines}] overlap no hunks`)
         s.resolvedDiff = sliced
       }
       for (const c of s.contexts || []) {
@@ -739,13 +736,11 @@ test('real template.html contains all three slot tokens', () => {
   }
 })
 
-test('real template.html pins both CDN libs with SRI', () => {
+test('real template.html loads CDN libs with SRI on every CDN tag', () => {
   const tpl = readFileSyncT(path2.join(REAL_ASSETS, 'template.html'), 'utf8')
-  assert.ok(/highlight\.js\/11\.9\.0\/highlight\.min\.js/.test(tpl))
-  assert.ok(/markdown-it\/14\.1\.0\/markdown-it\.min\.js/.test(tpl))
   // every CDN <script>/<link> must carry a non-empty sha384 integrity attribute
   const cdnTags = tpl.match(/<(script|link)[^>]*cdnjs[^>]*>/g) || []
-  assert.ok(cdnTags.length >= 3, 'expected at least 3 CDN tags')
+  assert.ok(cdnTags.length >= 3, 'expected at least 3 CDN tags (hljs css + hljs js + markdown-it)')
   for (const tag of cdnTags) assert.ok(/integrity="sha384-.+?"/.test(tag), `no SRI on: ${tag}`)
 })
 ```
@@ -1080,7 +1075,7 @@ Create `skills/pr-walkthrough/assets/viewer.js`:
       body.appendChild(prose(txt))
     }
     sec.appendChild(body)
-    return { sec: sec, counts: diffStats(s.resolvedDiff || '') }
+    return sec
   }
 
   function sidebarFileLink(s, id) {
@@ -1182,7 +1177,7 @@ Create `skills/pr-walkthrough/assets/viewer.js`:
       ch.sections.forEach(function (s, si) {
         var id = 'sec-' + ci + '-' + si
         navChap.appendChild(sidebarFileLink(s, id))
-        chapter.appendChild(sectionEl(s, id).sec)
+        chapter.appendChild(sectionEl(s, id))
       })
 
       sidebar.appendChild(navChap)
@@ -1239,89 +1234,45 @@ git commit -m "$(printf 'feat(pr-walkthrough): browser renderer for split diffs 
 
 ---
 
-## Task 9: Sample fixture and end-to-end build test
+## Task 9: End-to-end build test (real assets)
 
-A representative fixture plus an integration test that builds against the **real** assets with a fake provider, asserting the full HTML is well-formed.
+An integration test that builds against the **real committed assets** with a fake diff provider, asserting the shipped template inlines correctly and produces a well-formed self-contained document. Reuses the inline `validData()` from Task 1 — no separate fixture file (the agent prompt in Task 11 is the canonical documented example of the content model).
 
 **Files:**
-- Create: `skills/pr-walkthrough/test/fixture.json`
 - Modify: `skills/pr-walkthrough/scripts/build-walkthrough.test.mjs`
 
-- [ ] **Step 1: Create the fixture**
+- [ ] **Step 1: Write the test**
 
-Create `skills/pr-walkthrough/test/fixture.json`:
-
-```json
-{
-  "pr": {
-    "number": 482, "repo": "acme/widgets", "title": "Add tenant-scoped auth",
-    "author": "haldunanil", "headBranch": "feat/auth", "baseBranch": "main",
-    "url": "https://github.com/acme/widgets/pull/482", "filesCount": 2, "commitsCount": 1
-  },
-  "summary": "Introduces the **auth** data layer and wires the handler.",
-  "chapters": [
-    {
-      "id": "schema", "title": "Schema",
-      "intro": "Foundational types the rest of the PR builds on.\n\n- new `User` fields\n- a helper",
-      "sections": [
-        {
-          "file": "src/user.ts", "unit": null, "lines": null, "kind": "normal",
-          "narrative": "Adds `const c` and switches `b`.\n\n*Why:* needed by the handler.",
-          "contexts": [{ "ref": "src/helper.ts", "lines": [1, 1], "note": "Invoked below." }]
-        },
-        {
-          "file": "package-lock.json", "unit": null, "lines": null, "kind": "lockfile",
-          "narrative": "Dependency churn from adding the auth lib.",
-          "note": "3 deps added, 1 updated"
-        }
-      ]
-    }
-  ],
-  "crossCutting": "- New `tenant_id` threading appears across both files.",
-  "openQuestions": "- Should `b` default differently?",
-  "commitMap": [{ "sha": "abc1234", "message": "Add auth schema", "chapters": ["Schema"] }]
-}
-```
-
-- [ ] **Step 2: Write the failing test**
-
-Append to `skills/pr-walkthrough/scripts/build-walkthrough.test.mjs`:
+Append to `skills/pr-walkthrough/scripts/build-walkthrough.test.mjs` (reuses `validData()` from Task 1, `TWO_HUNK_DIFF` from Task 2, `fakeProvider` from Task 3, and `REAL_ASSETS` from Task 6 — all already in this file):
 
 ```js
-test('end-to-end: fixture builds a self-contained HTML document', () => {
-  const fixture = JSON.parse(readFileSyncT(path2.join(REAL_ASSETS, '..', 'test', 'fixture.json'), 'utf8'))
-  const html = buildDocument(fixture, {
+test('end-to-end: builds a self-contained HTML document from the real assets', () => {
+  const html = buildDocument(validData(), {
     assetsDir: REAL_ASSETS,
     provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'export function helper() {}' }),
   })
   assert.ok(html.startsWith('<!DOCTYPE html>'))
-  assert.ok(html.includes('Add tenant-scoped auth'))            // PR title present in embedded data
+  assert.ok(html.includes('Add auth'))                          // PR title from validData() present in embedded data
   assert.ok(!html.includes('id="chap-0"'))                      // chapter anchors are created client-side, not baked in
   assert.ok(/highlight\.min\.js/.test(html))                    // CDN hljs reference present
+  assert.ok(/markdown-it.*\.min\.js/.test(html))                // CDN markdown-it reference present
   assert.ok(/integrity="sha384-/.test(html))                    // SRI survived inlining
-  assert.ok(html.includes('"resolvedDiff"'))                    // normal section was resolved
-  assert.ok(html.includes('package-lock.json'))                 // lockfile section present in the embedded data
-})
-
-test('end-to-end: --validate exits 0 on the fixture (shape only)', () => {
-  // shape-only validation needs no git; referential layer is covered by resolveSections tests
-  const fixture = JSON.parse(readFileSyncT(path2.join(REAL_ASSETS, '..', 'test', 'fixture.json'), 'utf8'))
-  assert.deepEqual(validateShape(fixture), [])
+  assert.ok(html.includes('"resolvedDiff"'))                    // normal section was resolved and embedded
 })
 ```
 
-Note: the anchor `id="chap-0"` assertion documents that section/chapter anchors are generated by `viewer.js` at runtime, not baked into the served HTML — the test asserts they are absent from the static output, and Task 12 verifies they appear in the browser.
+Note: the `id="chap-0"` assertion documents that chapter/section anchors are generated by `viewer.js` at runtime, not baked into the served HTML — the test asserts they are absent from the static output, and Task 12 verifies they appear in the browser.
 
-- [ ] **Step 3: Run the test to verify it passes**
+- [ ] **Step 2: Run the test to verify it passes**
 
 This is an integration test over the units built in Tasks 1–8, so it validates wiring rather than driving new code (no prior "failing" state to show). Run: `node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs`
-Expected: PASS — entire suite green. If it fails, the failing assertion names the broken invariant (missing title, stripped SRI, unresolved section, fixture path wrong, etc.).
+Expected: PASS — entire suite green. If it fails, the failing assertion names the broken invariant (missing title, stripped SRI, unresolved section, etc.).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add skills/pr-walkthrough/test/fixture.json skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
-git commit -m "$(printf 'test(pr-walkthrough): end-to-end build against real assets with a fake provider\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
+git add skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
+git commit -m "$(printf 'test(pr-walkthrough): end-to-end build against the real shipped assets\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>')"
 ```
 
 ---
