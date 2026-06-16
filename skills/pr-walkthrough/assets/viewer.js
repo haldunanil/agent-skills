@@ -164,11 +164,24 @@
     var bar = el('div', 'topbar')
     bar.appendChild(el('h1', null, 'PR #' + data.pr.number + ': ' + data.pr.title))
     var meta = el('div', 'meta')
-    meta.innerHTML =
-      data.pr.repo + ' #' + data.pr.number + ' &middot; @' + data.pr.author +
-      ' &middot; <code>' + data.pr.headBranch + '→' + data.pr.baseBranch + '</code>' +
-      ' &middot; ' + data.pr.filesCount + ' files, ' + data.pr.commitsCount + ' commits' +
-      ' &middot; <a href="' + data.pr.url + '">' + data.pr.url + '</a>'
+    var sep = function () { meta.appendChild(document.createTextNode(' · ')) }
+    meta.appendChild(document.createTextNode(data.pr.repo + ' #' + data.pr.number))
+    sep()
+    meta.appendChild(document.createTextNode('@' + data.pr.author))
+    sep()
+    meta.appendChild(el('code', null, data.pr.headBranch + '→' + data.pr.baseBranch))
+    sep()
+    meta.appendChild(document.createTextNode(data.pr.filesCount + ' files, ' + data.pr.commitsCount + ' commits'))
+    var url = String(data.pr.url || '')
+    if (/^https?:\/\//i.test(url)) {            // only linkify safe schemes; setAttribute never executes
+      sep()
+      var link = el('a', null, url)
+      link.setAttribute('href', url)
+      meta.appendChild(link)
+    } else if (url) {
+      sep()
+      meta.appendChild(document.createTextNode(url))
+    }
     bar.appendChild(meta)
     bar.appendChild(prose(data.summary))
     var controls = el('div', 'controls')
