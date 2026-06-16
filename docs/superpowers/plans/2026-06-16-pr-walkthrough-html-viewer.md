@@ -1611,7 +1611,7 @@ Confirm visually:
 - Layout A renders: sticky sidebar with chapters/files (+/− counts), one scrolling main column.
 - Diffs show **side-by-side** (old left / new right) with line numbers and add/remove coloring.
 - Prose shows **markdown** formatting (bold, inline code, bullets, sub-headings).
-- Syntax highlighting is applied to code (online). 
+- Syntax highlighting is applied to code (online).
 - Collapse caret on a file header hides/shows its body; "Collapse all" toggles every file.
 - Clicking a sidebar file scrolls to it; the active link tracks as you scroll.
 
