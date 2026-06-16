@@ -33,16 +33,16 @@ The controller has already resolved this metadata — do **not** re-fetch it:
 
 - **Data path (write your JSON here):** `{DATA_PATH}`
 
-Use the commits list and files list as your **table of contents**. Fetch per-file final-state diffs as you read. Prefer `gh pr diff` (it works for fork PRs and fetches as needed):
+Use the commits list and files list as your **table of contents**. Read the PR's diff to understand the changes — this is the exact diff the build step renders:
 
 ```bash
-gh pr diff {PR_NUMBER} -- <file>
+gh pr diff {PR_NUMBER}
 ```
 
-or, against the exact resolved commits the controller fetched:
+For a single file's final state (e.g. to understand surrounding code), use:
 
 ```bash
-git diff {BASE_SHA}...{HEAD_SHA} -- <file>
+git show {HEAD_SHA}:<path>
 ```
 
 ## 1. Role and framing
@@ -81,7 +81,7 @@ Express a sub-section in the JSON by adding another section with the **same `fil
 
 ## 4. External context (unchanged code)
 
-When a name in a diff is **opaque** (e.g., `mySuperFancyWorkflow` rather than `formatHumanReadableDate`), or when **surrounding unchanged code** is genuinely needed to understand a change, add a **context pointer** to that section's `contexts` array — do **not** quote the code yourself. The build step reads those lines from the base revision and shows them, clearly marked as unchanged.
+When a name in a diff is **opaque** (e.g., `mySuperFancyWorkflow` rather than `formatHumanReadableDate`), or when **surrounding unchanged code** is genuinely needed to understand a change, add a **context pointer** to that section's `contexts` array — do **not** quote the code yourself. The build step reads those lines from the PR's final (head) state and shows them, clearly marked as unchanged.
 
 A context pointer looks like:
 
@@ -146,7 +146,7 @@ Write a single JSON document to `{DATA_PATH}` with exactly this shape. **Prose f
 
 **Field rules:**
 
-- `sections[].file` — a path that appears in the PR's changed files. For a `normal` section the build step runs `git diff {BASE_SHA}...{HEAD_SHA} -- <file>`; if it produces no diff, the build fails — so only point at files that actually changed.
+- `sections[].file` — a path that appears in the PR's changed files (as listed above). The build step pulls this file's section out of `gh pr diff {PR_NUMBER}`; if the file isn't part of the PR, the build fails — so only point at files that actually changed.
 - `sections[].unit` — `null`, or a short label when you split one file into multiple sub-sections (e.g. `"Component A"`).
 - `sections[].lines` — `null` to show the whole file's diff, or `[start, end]` (line numbers in the **new** file) to show only the hunks overlapping that range. Use a range when a `unit` covers part of a file.
 - `sections[].kind` — one of:
@@ -154,7 +154,8 @@ Write a single JSON document to `{DATA_PATH}` with exactly this shape. **Prose f
   - `lockfile` — lockfiles (e.g. `package-lock.json`, `yarn.lock`, `Cargo.lock`). No diff; set `note` to the churn summary (e.g. `"12 deps added, 3 updated"`).
   - `generated` — a file mechanically derived from another in the PR. No diff; set `note` and `derivedFrom` (the human-authored source path).
   - `binary` — images/fonts/blobs. No diff; set `note` (include a `git diff --stat` line if useful).
-- `sections[].contexts` — optional pointers to **unchanged** code worth quoting. Each needs `ref`, `lines` `[start,end]`, and a markdown `note`. The build step reads those lines from the base revision.
+  - **Every kind still requires a `narrative`.** For lockfile/generated/binary the `note` is *in addition* to the narrative, not a replacement.
+- `sections[].contexts` — optional pointers to **unchanged** code worth quoting. Each needs `ref`, `lines` `[start,end]`, and a markdown `note`. The build step reads those lines from the head (final) revision.
 - `crossCutting` / `openQuestions` — single markdown strings (write them as bullet lists). Observational, not fix recommendations.
 
 Every file in the files-changed list must appear as a section (full diff for `normal`; a `note` for `lockfile`/`generated`/`binary`). Organize chapters by **final state**, not commit order. Split a file into multiple sub-sections (same `file`, different `unit` + `lines`) only when distinct readers care about distinct parts.
@@ -171,7 +172,7 @@ Write the JSON to `{DATA_PATH}` with the `Write` tool (overwrite if it exists). 
 
 ```bash
 node /mnt/skills/user/pr-walkthrough/scripts/build-walkthrough.mjs \
-  --validate "{DATA_PATH}" --base "{BASE_SHA}" --head "{HEAD_SHA}"
+  --validate "{DATA_PATH}" --pr {PR_NUMBER} --head "{HEAD_SHA}"
 ```
 
 (From this repo instead of an installed skill, use `skills/pr-walkthrough/scripts/build-walkthrough.mjs`.)
