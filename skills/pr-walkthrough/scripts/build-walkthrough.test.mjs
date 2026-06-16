@@ -185,3 +185,27 @@ test('renderHtml inlines css, viewer js, and escaped data', () => {
   assert.ok(!html.includes('</script><script>alert(1)'))
   assert.ok(html.includes('<\\/script>'))
 })
+
+import { buildDocument } from './build-walkthrough.mjs'
+
+test('buildDocument validates, resolves, and renders to HTML', () => {
+  const assetsDir = tempAssets()
+  const data = validData()
+  const html = buildDocument(data, {
+    assetsDir,
+    provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'function helper(){}' }),
+  })
+  assert.ok(html.includes('<!DOCTYPE html>'))
+  assert.ok(html.includes('"resolvedDiff"'))
+})
+
+test('buildDocument throws with all validation errors when shape is bad', () => {
+  const assetsDir = tempAssets()
+  const data = validData(); delete data.pr.title; data.summary = 5
+  assert.throws(() => buildDocument(data, { assetsDir, provider: fakeProvider({}, {}) }), (e) => {
+    assert.ok(Array.isArray(e.validation))
+    assert.ok(e.validation.some((m) => m.startsWith('pr.title')))
+    assert.ok(e.validation.some((m) => m.startsWith('summary')))
+    return true
+  })
+})
