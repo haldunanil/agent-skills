@@ -72,6 +72,23 @@
   }
 
   function buildDiff(diffText, lang) {
+    var wrap = el('div', 'diff-wrap')
+    var lines = diffText.split('\n')
+
+    // Preserve pre-hunk metadata (rename/copy/mode changes) so renames and
+    // header-only diffs show something instead of an empty table.
+    var META = /^(similarity index|dissimilarity index|rename from|rename to|copy from|copy to|new file mode|deleted file mode) /
+    var i = 0, metaLines = []
+    while (i < lines.length && lines[i].slice(0, 2) !== '@@') {
+      if (META.test(lines[i])) metaLines.push(lines[i])
+      i++
+    }
+    if (metaLines.length) {
+      var mbox = el('div', 'diff-meta')
+      metaLines.forEach(function (m) { mbox.appendChild(el('div', null, m)) })
+      wrap.appendChild(mbox)
+    }
+
     var table = el('table', 'diff')
     // colgroup pins the gutter widths under table-layout:fixed (the first row is a
     // colspan'd hunk separator, so per-cell widths alone are ignored).
@@ -80,12 +97,12 @@
       var col = document.createElement('col'); col.className = c; cg.appendChild(col)
     })
     table.appendChild(cg)
-    var lines = diffText.split('\n')
-    var i = 0
-    while (i < lines.length && lines[i].slice(0, 2) !== '@@') i++
+
+    var rendered = false
     while (i < lines.length) {
       var hh = parseHunkHeader(lines[i])
       if (!hh) { i++; continue }
+      rendered = true
       var sep = el('tr', 'hunksep'); var sepTd = el('td', null, lines[i]); sepTd.colSpan = 4
       sep.appendChild(sepTd); table.appendChild(sep)
       var oldNo = hh.oldStart, newNo = hh.newStart
@@ -103,6 +120,7 @@
       }
       for (; i < lines.length && lines[i].slice(0, 2) !== '@@'; i++) {
         var ln = lines[i]
+        if (ln === '') continue                        // trailing-newline split artifact (real blank context is ' ')
         if (ln.charAt(0) === '\\') continue            // "\ No newline at end of file"
         var tag = ln.charAt(0), text = ln.slice(1)
         if (tag === '-') dels.push({ no: oldNo++, text: text })
@@ -115,7 +133,10 @@
       }
       flush()
     }
-    return table
+
+    if (rendered) wrap.appendChild(table)
+    else if (!metaLines.length) wrap.appendChild(el('div', 'diff-meta', '(no textual changes)'))
+    return wrap
   }
 
   function contextBlock(c) {

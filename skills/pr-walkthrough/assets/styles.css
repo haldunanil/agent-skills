@@ -84,6 +84,8 @@ table.diff td.add { background: var(--add-bg); }
 table.diff td.empty { background: #0b0f14; }
 table.diff tr.hunksep td { background: var(--panel); color: var(--muted); padding: 2px 8px; }
 table.diff code { background: none; padding: 0; }
+.diff-meta { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin-top: 10px; }
+.diff-meta div { white-space: pre-wrap; word-break: break-word; }
 
 .tail { margin-top: 40px; }
 .tail h2 { font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
