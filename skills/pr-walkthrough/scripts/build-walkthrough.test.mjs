@@ -229,3 +229,17 @@ test('buildDocument throws with all validation errors when shape is bad', () => 
     return true
   })
 })
+
+test('end-to-end: builds a self-contained HTML document from the real assets', () => {
+  const html = buildDocument(validData(), {
+    assetsDir: REAL_ASSETS,
+    provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'export function helper() {}' }),
+  })
+  assert.ok(html.startsWith('<!DOCTYPE html>'))
+  assert.ok(html.includes('Add auth'))                          // PR title from validData() present in embedded data
+  assert.ok(!html.includes('id="chap-0"'))                      // chapter anchors are created client-side, not baked in
+  assert.ok(/highlight\.min\.js/.test(html))                    // CDN hljs reference present
+  assert.ok(/markdown-it.*\.min\.js/.test(html))                // CDN markdown-it reference present
+  assert.ok(/integrity="sha384-/.test(html))                    // SRI survived inlining
+  assert.ok(html.includes('"resolvedDiff"'))                    // normal section was resolved and embedded
+})
