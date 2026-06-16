@@ -46,3 +46,53 @@ test('validateShape: crossCutting/openQuestions must be strings', () => {
   const d = validData(); d.crossCutting = ['no', 'arrays']
   assert.ok(validateShape(d).some((e) => e.startsWith('crossCutting')))
 })
+
+import { parseHunkHeader, selectHunks } from './build-walkthrough.mjs'
+
+const TWO_HUNK_DIFF = [
+  'diff --git a/src/user.ts b/src/user.ts',
+  'index 1111111..2222222 100644',
+  '--- a/src/user.ts',
+  '+++ b/src/user.ts',
+  '@@ -10,3 +10,4 @@ class User {',
+  ' const a = 1',
+  '-const b = 2',
+  '+const b = 3',
+  '+const c = 4',
+  '@@ -120,2 +130,3 @@ function logout() {',
+  ' const x = 1',
+  '+const y = 2',
+].join('\n')
+
+test('parseHunkHeader extracts old/new starts and lengths', () => {
+  assert.deepEqual(parseHunkHeader('@@ -10,3 +10,4 @@ class User {'),
+    { oldStart: 10, oldLen: 3, newStart: 10, newLen: 4 })
+})
+
+test('parseHunkHeader defaults length to 1 when omitted', () => {
+  assert.deepEqual(parseHunkHeader('@@ -5 +6 @@'),
+    { oldStart: 5, oldLen: 1, newStart: 6, newLen: 1 })
+})
+
+test('selectHunks(null) returns the whole diff unchanged', () => {
+  assert.equal(selectHunks(TWO_HUNK_DIFF, null), TWO_HUNK_DIFF)
+})
+
+test('selectHunks keeps only the hunk overlapping the new-file range', () => {
+  const sliced = selectHunks(TWO_HUNK_DIFF, [10, 13])
+  assert.ok(sliced.includes('@@ -10,3 +10,4 @@'))
+  assert.ok(!sliced.includes('@@ -120,2 +130,3 @@'))
+  // file header is preserved so the slice is still a valid diff
+  assert.ok(sliced.includes('--- a/src/user.ts'))
+  assert.ok(sliced.includes('+++ b/src/user.ts'))
+})
+
+test('selectHunks keeps the second hunk when the range targets it', () => {
+  const sliced = selectHunks(TWO_HUNK_DIFF, [130, 132])
+  assert.ok(sliced.includes('@@ -120,2 +130,3 @@'))
+  assert.ok(!sliced.includes('@@ -10,3 +10,4 @@'))
+})
+
+test('selectHunks drops all hunks when a range overlaps nothing', () => {
+  assert.ok(!/^@@ /m.test(selectHunks(TWO_HUNK_DIFF, [9999, 10000])))
+})
