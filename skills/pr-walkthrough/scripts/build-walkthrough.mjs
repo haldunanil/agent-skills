@@ -134,22 +134,49 @@ export function selectHunks(diffText, lines) {
 }
 
 // ---------- referential resolution (layer 2) ----------
-export function gitDiffProvider(base, head) {
+// Split a full `gh pr diff` into per-file unified diffs, keyed by the new path.
+export function splitPrDiff(fullDiff) {
+  const map = {}
+  if (!fullDiff || !fullDiff.trim()) return map
+  for (const section of fullDiff.split(/(?=^diff --git )/m)) {
+    if (!section.startsWith('diff --git ')) continue
+    const file =
+      (/^rename to (.+)$/m.exec(section) || [])[1] ||
+      (/^\+\+\+ b\/(.+)$/m.exec(section) || [])[1] ||
+      (/^diff --git a\/.+ b\/(.+)$/m.exec(section) || [])[1]
+    if (file) map[file] = section
+  }
+  return map
+}
+
+// Diffs come from `gh pr diff` — GitHub's canonical PR diff, correct for open,
+// merged, AND fork PRs alike. (`git diff base...head` goes empty once a PR is
+// merged via a merge commit, because the base then contains the head.) Context
+// (unchanged) code is read from the head commit, matching the final-state framing.
+export function prDiffProvider(prNumber, headSha) {
   const opts = { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
-  const git = (args) => {
+  let map = null
+  const load = () => {
+    if (map) return map
+    let full
     try {
-      return execFileSync('git', args, opts)
+      full = execFileSync('gh', ['pr', 'diff', String(prNumber)], opts)
     } catch (e) {
-      throw new Error(
-        `git ${args.join(' ')} failed — ensure the base/head refs (${base}, ${head}) exist locally; ` +
-        `the controller should pass fetched PR SHAs. ${(e.stderr || e.message || '').toString().trim()}`,
-      )
+      throw new Error(`gh pr diff ${prNumber} failed — is gh installed and authenticated? ${(e.stderr || e.message || '').toString().trim()}`)
     }
+    map = splitPrDiff(full)
+    return map
   }
   return {
-    fileDiff: (file) => git(['diff', `${base}...${head}`, '--', file]),
-    showLines: (ref, [a, b]) => git(['show', `${base}:${ref}`]).split('\n').slice(a - 1, b).join('\n'),
-    changedFiles: () => git(['diff', '--name-only', `${base}...${head}`]).split('\n').filter(Boolean),
+    fileDiff: (file) => load()[file] || '',
+    changedFiles: () => Object.keys(load()),
+    showLines: (ref, [a, b]) => {
+      try {
+        return execFileSync('git', ['show', `${headSha}:${ref}`], opts).split('\n').slice(a - 1, b).join('\n')
+      } catch (e) {
+        throw new Error(`git show ${headSha}:${ref} failed — ensure the PR head commit is fetched locally. ${(e.stderr || e.message || '').toString().trim()}`)
+      }
+    },
   }
 }
 
@@ -239,8 +266,8 @@ function main(argv) {
   if (args.validate) {
     const data = JSON.parse(readFileSync(args.validate, 'utf8'))
     const errors = validateShape(data)
-    if (args.base && args.head && errors.length === 0) {
-      const provider = gitDiffProvider(args.base, args.head)
+    if (args.pr && args.head && errors.length === 0) {
+      const provider = prDiffProvider(args.pr, args.head)
       try {
         resolveSections(data, provider)
         errors.push(...coverageErrors(data, provider))
@@ -251,11 +278,11 @@ function main(argv) {
     return
   }
 
-  if (args.data && args.out && args.base && args.head) {
+  if (args.data && args.out && args.pr && args.head) {
     const data = JSON.parse(readFileSync(args.data, 'utf8'))
     let html
     try {
-      html = buildDocument(data, { provider: gitDiffProvider(args.base, args.head), assetsDir: assetsDirFromScript() })
+      html = buildDocument(data, { provider: prDiffProvider(args.pr, args.head), assetsDir: assetsDirFromScript() })
     } catch (e) {
       console.error(e.message)
       process.exit(1)
@@ -266,8 +293,8 @@ function main(argv) {
   }
 
   console.error('usage:')
-  console.error('  build-walkthrough.mjs --validate <data.json> [--base <ref> --head <ref>]')
-  console.error('  build-walkthrough.mjs --data <data.json> --out <out.html> --base <ref> --head <ref>')
+  console.error('  build-walkthrough.mjs --validate <data.json> [--pr <number> --head <sha>]')
+  console.error('  build-walkthrough.mjs --data <data.json> --out <out.html> --pr <number> --head <sha>')
   process.exit(2)
 }
 

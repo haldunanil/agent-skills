@@ -270,3 +270,52 @@ test('buildDocument throws a coverage error when a changed file is uncovered', (
     },
   )
 })
+
+import { splitPrDiff } from './build-walkthrough.mjs'
+
+const MULTI_FILE_PR_DIFF = [
+  'diff --git a/src/a.ts b/src/a.ts',
+  'index 1111111..2222222 100644',
+  '--- a/src/a.ts',
+  '+++ b/src/a.ts',
+  '@@ -1 +1 @@',
+  '-old',
+  '+new',
+  'diff --git a/src/added.ts b/src/added.ts',
+  'new file mode 100644',
+  'index 0000000..3333333',
+  '--- /dev/null',
+  '+++ b/src/added.ts',
+  '@@ -0,0 +1 @@',
+  '+hello',
+  'diff --git a/src/gone.ts b/src/gone.ts',
+  'deleted file mode 100644',
+  'index 4444444..0000000',
+  '--- a/src/gone.ts',
+  '+++ /dev/null',
+  '@@ -1 +0,0 @@',
+  '-bye',
+  'diff --git a/old/name.ts b/new/name.ts',
+  'similarity index 100%',
+  'rename from old/name.ts',
+  'rename to new/name.ts',
+  '',
+].join('\n')
+
+test('splitPrDiff keys each file section by its new path (modify/add/delete/rename)', () => {
+  const map = splitPrDiff(MULTI_FILE_PR_DIFF)
+  assert.deepEqual(Object.keys(map).sort(), ['new/name.ts', 'src/a.ts', 'src/added.ts', 'src/gone.ts'])
+})
+
+test('splitPrDiff captures full, non-bleeding per-file sections', () => {
+  const map = splitPrDiff(MULTI_FILE_PR_DIFF)
+  assert.ok(map['src/a.ts'].startsWith('diff --git a/src/a.ts'))
+  assert.ok(map['src/a.ts'].includes('+new'))
+  assert.ok(!map['src/a.ts'].includes('src/added.ts'))      // sections must not bleed into each other
+  assert.ok(map['new/name.ts'].includes('rename to new/name.ts'))
+  assert.ok(map['src/gone.ts'].includes('+++ /dev/null'))   // deletion keyed by its path
+})
+
+test('splitPrDiff returns an empty map for empty input', () => {
+  assert.deepEqual(splitPrDiff(''), {})
+})
