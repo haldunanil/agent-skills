@@ -26,6 +26,13 @@ jobs:
           cache: "npm"
           cache-dependency-path: packages/hal-agent-skills/package-lock.json
       - run: npm ci
+      # Skill script tests run from the repo root (stdlib-only node:test; no deps needed).
+      # Add further skills' test files to this step as they gain them.
+      - name: Skill script tests
+        working-directory: ${{ github.workspace }}
+        run: |
+          node --check skills/pr-walkthrough/assets/viewer.js
+          node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
       - run: npm run validate
       - run: npm run build
       - uses: actions/upload-artifact@v4
