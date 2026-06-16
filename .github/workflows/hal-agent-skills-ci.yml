@@ -13,6 +13,20 @@ on:
       - "packages/hal-agent-skills/**"
 
 jobs:
+  # Skill script checks (stdlib-only node:test; no npm install needed). Runs in
+  # parallel with `validate` and shows as its own check in the PR checks section.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check viewer.js syntax
+        run: node --check skills/pr-walkthrough/assets/viewer.js
+      - name: Run pr-walkthrough tests
+        run: node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
+
   validate:
     runs-on: ubuntu-latest
     defaults:
@@ -26,13 +40,6 @@ jobs:
           cache: "npm"
           cache-dependency-path: packages/hal-agent-skills/package-lock.json
       - run: npm ci
-      # Skill script checks run from the repo root (stdlib-only node:test; no deps needed).
-      - name: Check viewer.js syntax
-        working-directory: ${{ github.workspace }}
-        run: node --check skills/pr-walkthrough/assets/viewer.js
-      - name: Run pr-walkthrough tests
-        working-directory: ${{ github.workspace }}
-        run: node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
       - run: npm run validate
       - run: npm run build
       - uses: actions/upload-artifact@v4
