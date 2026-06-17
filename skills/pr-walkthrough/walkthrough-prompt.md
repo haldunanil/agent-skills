@@ -112,7 +112,7 @@ Write a single JSON document to `{DATA_PATH}` with exactly this shape. **Prose f
 ```jsonc
 {
   "pr": {
-    "number": {PR_NUMBER}, "repo": "{OWNER_REPO}", "title": "{PR_TITLE}",
+    "number": {PR_NUMBER}, "repo": "{OWNER_REPO}", "commit": "{HEAD_SHA}", "title": "{PR_TITLE}",
     "author": "{AUTHOR}", "headBranch": "{HEAD_BRANCH}", "baseBranch": "{BASE_BRANCH}",
     "url": "{URL}", "filesCount": {FILES_COUNT}, "commitsCount": {COMMITS_COUNT}
   },

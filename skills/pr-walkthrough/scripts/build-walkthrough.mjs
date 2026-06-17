@@ -16,6 +16,7 @@ const isLinePair = (v) => isArr(v) && v.length === 2 && isInt(v[0]) && isInt(v[1
 // Template slot tokens — template.html MUST contain these exact comments.
 export const SLOT_STYLES = '<!--PR_WALKTHROUGH_STYLES-->'
 export const SLOT_VIEWER = '<!--PR_WALKTHROUGH_VIEWER_JS-->'
+export const SLOT_COMMENTS = '<!--PR_WALKTHROUGH_COMMENTS_JS-->'
 export const SLOT_DATA = '<!--PR_WALKTHROUGH_DATA-->'
 
 export function validateShape(data) {
@@ -28,7 +29,7 @@ export function validateShape(data) {
   if (typeof pr !== 'object' || pr === null || isArr(pr)) {
     err('pr', 'must be an object')
   } else {
-    for (const k of ['title', 'repo', 'author', 'headBranch', 'baseBranch', 'url']) {
+    for (const k of ['title', 'repo', 'commit', 'author', 'headBranch', 'baseBranch', 'url']) {
       if (!isStr(pr[k])) err(`pr.${k}`, 'must be a string')
     }
     for (const k of ['number', 'filesCount', 'commitsCount']) {
@@ -222,11 +223,13 @@ export function renderHtml(data, { assetsDir }) {
   const tpl = readFileSync(path.join(assetsDir, 'template.html'), 'utf8')
   const css = readFileSync(path.join(assetsDir, 'styles.css'), 'utf8')
   const js = readFileSync(path.join(assetsDir, 'viewer.js'), 'utf8')
+  const comments = readFileSync(path.join(assetsDir, 'comments.js'), 'utf8')
   const json = escapeForScript(JSON.stringify(data))
   // Function replacers avoid `$`-pattern interpretation in css/js/json content.
   return tpl
     .replace(SLOT_STYLES, () => `<style>\n${css}\n</style>`)
     .replace(SLOT_VIEWER, () => `<script>\n${js}\n</script>`)
+    .replace(SLOT_COMMENTS, () => `<script>\n${comments}\n</script>`)
     .replace(SLOT_DATA, () => json)
 }
 
