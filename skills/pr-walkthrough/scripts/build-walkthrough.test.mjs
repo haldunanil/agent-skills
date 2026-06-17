@@ -4,7 +4,7 @@ import { validateShape } from './build-walkthrough.mjs'
 
 function validData() {
   return {
-    pr: { number: 482, repo: 'acme/widgets', title: 'Add auth', author: 'me',
+    pr: { number: 482, repo: 'acme/widgets', commit: 'deadbeef', title: 'Add auth', author: 'me',
           headBranch: 'feat', baseBranch: 'main', url: 'https://x', filesCount: 2, commitsCount: 1 },
     summary: 'orientation',
     chapters: [{
@@ -45,6 +45,11 @@ test('validateShape: lines must be ordered [start,end]', () => {
 test('validateShape: crossCutting/openQuestions must be strings', () => {
   const d = validData(); d.crossCutting = ['no', 'arrays']
   assert.ok(validateShape(d).some((e) => e.startsWith('crossCutting')))
+})
+
+test('validateShape: pr.commit is required', () => {
+  const d = validData(); delete d.pr.commit
+  assert.ok(validateShape(d).some((e) => e.startsWith('pr.commit')), 'expected pr.commit error')
 })
 
 import { parseHunkHeader, selectHunks } from './build-walkthrough.mjs'

@@ -28,7 +28,7 @@ export function validateShape(data) {
   if (typeof pr !== 'object' || pr === null || isArr(pr)) {
     err('pr', 'must be an object')
   } else {
-    for (const k of ['title', 'repo', 'author', 'headBranch', 'baseBranch', 'url']) {
+    for (const k of ['title', 'repo', 'commit', 'author', 'headBranch', 'baseBranch', 'url']) {
       if (!isStr(pr[k])) err(`pr.${k}`, 'must be a string')
     }
     for (const k of ['number', 'filesCount', 'commitsCount']) {
