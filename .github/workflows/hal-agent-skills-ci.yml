@@ -22,10 +22,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Check viewer.js syntax
-        run: node --check skills/pr-walkthrough/assets/viewer.js
+      - name: Check browser asset syntax
+        run: |
+          node --check skills/pr-walkthrough/assets/viewer.js
+          node --check skills/pr-walkthrough/assets/comments.js
       - name: Run pr-walkthrough tests
         run: node --test skills/pr-walkthrough/scripts/build-walkthrough.test.mjs
+      - name: Run post-pr-review tests
+        run: node --test skills/post-pr-review/scripts/post-review.test.mjs
 
   validate:
     runs-on: ubuntu-latest
