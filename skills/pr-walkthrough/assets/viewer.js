@@ -151,6 +151,7 @@
 
   function sectionEl(s, id) {
     var sec = el('section', 'file'); sec.id = id
+    sec.setAttribute('data-path', s.file)
     var head = el('div', 'file-head')
     head.appendChild(el('span', 'caret', '▾'))
     head.appendChild(el('span', 'path', s.file + (s.unit ? ' — ' + s.unit : '')))

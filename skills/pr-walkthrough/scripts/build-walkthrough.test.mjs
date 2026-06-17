@@ -161,15 +161,16 @@ test('resolveSections does not fetch diffs for lockfile sections', () => {
 import { mkdtempSync, writeFileSync as writeFileSyncT } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path2 from 'node:path'
-import { escapeForScript, renderHtml, SLOT_STYLES, SLOT_VIEWER, SLOT_DATA } from './build-walkthrough.mjs'
+import { escapeForScript, renderHtml, SLOT_STYLES, SLOT_VIEWER, SLOT_DATA, SLOT_COMMENTS } from './build-walkthrough.mjs'
 
 function tempAssets() {
   const dir = mkdtempSync(path2.join(tmpdir(), 'pw-assets-'))
   writeFileSyncT(path2.join(dir, 'template.html'),
     `<!DOCTYPE html><html><head>${SLOT_STYLES}</head><body>` +
-    `<script id="walkthrough-data" type="application/json">${SLOT_DATA}</script>${SLOT_VIEWER}</body></html>`)
+    `<script id="walkthrough-data" type="application/json">${SLOT_DATA}</script>${SLOT_VIEWER}${SLOT_COMMENTS}</body></html>`)
   writeFileSyncT(path2.join(dir, 'styles.css'), 'body{color:red}')
   writeFileSyncT(path2.join(dir, 'viewer.js'), "console.log('viewer')")
+  writeFileSyncT(path2.join(dir, 'comments.js'), "console.log('comments')")
   return dir
 }
 
@@ -202,6 +203,17 @@ test('real template.html contains all three slot tokens', () => {
   for (const slot of [SLOT_STYLES, SLOT_VIEWER, SLOT_DATA]) {
     assert.ok(tpl.includes(slot), `missing ${slot}`)
   }
+})
+
+test('renderHtml inlines comments.js', () => {
+  const assetsDir = tempAssets()
+  const html = renderHtml({ x: 1 }, { assetsDir })
+  assert.ok(html.includes("console.log('comments')"), 'comments.js should be inlined')
+})
+
+test('real template.html contains the comments slot', () => {
+  const tpl = readFileSyncT(path2.join(REAL_ASSETS, 'template.html'), 'utf8')
+  assert.ok(tpl.includes(SLOT_COMMENTS), 'template must contain the comments slot token')
 })
 
 test('real template.html loads CDN libs with SRI on every CDN tag', () => {
