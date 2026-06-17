@@ -125,11 +125,18 @@ tr.wt-thread-row > td, .wt-file-card { padding: 0; }
 .wt-thread-b { font-size: 13px; }
 .wt-thread-b p { margin: 4px 0; } .wt-thread-b code { background: var(--bg); border-radius: 4px; padding: 1px 4px; }
 
-.wt-panel { position: fixed; right: 16px; bottom: 16px; width: 320px; max-height: 60vh; overflow: auto;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
-.wt-panel-h { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.wt-panel { position: fixed; right: 16px; bottom: 16px; width: 320px; max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; font-size: 12px; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.wt-panel-h { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; cursor: pointer; flex: 0 0 auto; }
+.wt-panel-h .wt-caret { color: var(--muted); }
 .wt-panel-h .wt-count { margin-left: auto; color: var(--muted); font-weight: 400; }
-.wt-panel-it { padding: 5px 12px; border-bottom: 1px solid var(--border); }
+.wt-panel-list { overflow: auto; flex: 1 1 auto; }
+.wt-panel.wt-collapsed .wt-panel-h { border-bottom: none; }
+.wt-panel.wt-collapsed .wt-panel-list, .wt-panel.wt-collapsed .wt-panel-f { display: none; }
+.wt-panel-it { padding: 5px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.wt-panel-it:hover { background: var(--bg); }
 .wt-panel-it .wt-loc { color: var(--link); } .wt-panel-it .wt-outdated { color: var(--del-num); }
 .wt-panel-it .wt-snip { color: var(--muted); }
-.wt-panel-f { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 12px; }
+.wt-panel-f { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 12px; border-top: 1px solid var(--border); flex: 0 0 auto; }
+.wt-flash { outline: 2px solid var(--link); outline-offset: -2px; border-radius: 3px; }

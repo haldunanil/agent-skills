@@ -214,19 +214,49 @@
 
   // ---- review panel ----
   var panel = null
+  var PANEL_KEY = KEY + ':panel-collapsed'
+  var panelCollapsed = false
+  try { panelCollapsed = localStorage.getItem(PANEL_KEY) === '1' } catch (e) {}
+
+  function scrollToComment(c) {
+    var target
+    if (c.kind === 'file') { target = document.querySelector('.file[data-path="' + cssEsc(c.path) + '"]') }
+    else { target = findGutter(c.path, c.side, c.line) || document.querySelector('.file[data-path="' + cssEsc(c.path) + '"]') }
+    if (!target) return
+    var sec = target.closest && target.closest('.file')
+    if (sec && sec.classList.contains('collapsed')) sec.classList.remove('collapsed')   // expand so it's visible
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.classList.add('wt-flash'); setTimeout(function () { target.classList.remove('wt-flash') }, 1200)
+  }
+
   function renderPanel() {
     if (!panel) { panel = el('div', 'wt-panel'); document.body.appendChild(panel) }
     panel.textContent = ''
-    var head = el('div', 'wt-panel-h'); head.appendChild(el('span', null, '📝 Review'))
+    panel.classList.toggle('wt-collapsed', panelCollapsed)
+
+    var head = el('div', 'wt-panel-h')
+    head.appendChild(el('span', 'wt-caret', panelCollapsed ? '▸' : '▾'))
+    head.appendChild(el('span', null, ' 📝 Review'))
     head.appendChild(el('span', 'wt-count', comments.length + (comments.length === 1 ? ' comment' : ' comments')))
+    head.addEventListener('click', function () {
+      panelCollapsed = !panelCollapsed
+      try { localStorage.setItem(PANEL_KEY, panelCollapsed ? '1' : '0') } catch (e) {}
+      renderPanel()
+    })
     panel.appendChild(head)
+
+    var list = el('div', 'wt-panel-list')
     comments.forEach(function (c) {
       var it = el('div', 'wt-panel-it')
       var loc = c.kind === 'file' ? c.path + ' (file)' : c.path + ' ' + (c.side === 'RIGHT' ? '+' : '-') + c.line + (c.outdated ? ' (outdated)' : '')
       it.appendChild(el('span', 'wt-loc' + (c.outdated ? ' wt-outdated' : ''), loc))
       it.appendChild(el('span', 'wt-snip', ' · ' + c.body.slice(0, 50)))
-      panel.appendChild(it)
+      it.title = 'Jump to comment'
+      it.addEventListener('click', function () { scrollToComment(c) })
+      list.appendChild(it)
     })
+    panel.appendChild(list)
+
     var foot = el('div', 'wt-panel-f')
     var clear = el('button', 'wt-btn', 'Clear')
     var copy = el('button', 'wt-btn wt-primary', 'Copy review')
