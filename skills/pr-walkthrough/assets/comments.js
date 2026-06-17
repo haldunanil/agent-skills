@@ -264,8 +264,12 @@
     clear.addEventListener('click', function () { if (confirm('Delete all ' + comments.length + ' comments?')) { comments = []; save(); refresh() } })
     copy.addEventListener('click', function () {
       var text = JSON.stringify(exportReview(), null, 2)
-      if (navigator.clipboard) navigator.clipboard.writeText(text)
-      copy.textContent = 'Copied!'; setTimeout(function () { copy.textContent = 'Copy review' }, 1200)
+      var flash = function (msg, ms) { copy.textContent = msg; setTimeout(function () { copy.textContent = 'Copy review' }, ms) }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { flash('Copied!', 1200) }).catch(function () { flash('Copy failed', 1500) })
+      } else {
+        flash('Copy unavailable', 1500)   // no clipboard API (rare; older/file:// contexts)
+      }
     })
     foot.appendChild(clear); foot.appendChild(copy); panel.appendChild(foot)
   }

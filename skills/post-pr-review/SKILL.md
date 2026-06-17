@@ -39,7 +39,7 @@ node /mnt/skills/user/post-pr-review/scripts/post-review.mjs /tmp/pr-reviews/rev
 
 - On success the script prints `{ "ok": true, "posted": [...] }` with the created review/comment URLs. Report the review URL to the user.
 - On a **validation error** it exits non-zero and prints what's wrong with the JSON — relay it and stop (do not guess fixes to the user's comments).
-- On a **`gh` error** (not authenticated, no network, PR not found) it prints the error and any comments already posted — relay both so the user can re-auth and retry.
+- On a **`gh` error** (not authenticated, no network, PR not found) it prints the error and any comments already posted — relay both so the user can re-auth and retry. **If "Already posted" includes a `review`**, warn the user that re-running posts a *duplicate* review (GitHub reviews are not idempotent); they should re-auth and post only the remaining file comments individually rather than re-running the whole review.
 
 ### Step 3: Report
 
