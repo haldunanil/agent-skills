@@ -32,6 +32,20 @@ test('validateReview rejects startLine greater than line', () => {
     .some((e) => e.includes('startLine')))
 })
 
+test('validateReview rejects non-positive pr and line', () => {
+  assert.ok(validateReview(review({ pr: 0 })).some((e) => e.startsWith('pr')))
+  assert.ok(validateReview(review({ comments: [{ path: 'a', side: 'RIGHT', line: 0, body: 'x' }] })).some((e) => e.includes('.line')))
+})
+
+test('validateReview accepts a file-comments-only review (no comments key)', () => {
+  const r = { repo: 'acme/widgets', pr: 5, commit: 'abc123', fileComments: [{ path: 'src/a.ts', body: 'whole file' }] }
+  assert.deepEqual(validateReview(r), [])
+  const { gh, calls } = fakeGh()
+  postReview(r, { gh })
+  assert.equal(calls.length, 1)                                  // no review call, just the file comment
+  assert.equal(calls[0].body.subject_type, 'file')
+})
+
 test('reviewApiArgs builds a batched COMMENT review with mapped line comments', () => {
   const { endpoint, body } = reviewApiArgs(review({
     comments: [{ path: 'src/a.ts', side: 'RIGHT', line: 12, startLine: 11, body: 'multi' }],

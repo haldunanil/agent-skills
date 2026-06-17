@@ -13,7 +13,7 @@ export function validateReview(r) {
   const err = (p, m) => errors.push(`${p}: ${m}`)
   if (typeof r !== 'object' || r === null || Array.isArray(r)) return ['<root>: must be an object']
   if (!isStr(r.repo) || !/^[^/\s]+\/[^/\s]+$/.test(r.repo)) err('repo', 'must be "owner/name"')
-  if (!isInt(r.pr)) err('pr', 'must be an integer')
+  if (!isInt(r.pr) || r.pr <= 0) err('pr', 'must be a positive integer')
   if (!isStr(r.commit)) err('commit', 'must be a commit sha string')
   if (r.body !== undefined && typeof r.body !== 'string') err('body', 'must be a string')
 
@@ -24,8 +24,8 @@ export function validateReview(r) {
     const p = `comments[${i}]`
     if (!isStr(c?.path)) err(`${p}.path`, 'must be a string')
     if (!SIDES.has(c?.side)) err(`${p}.side`, 'must be LEFT or RIGHT')
-    if (!isInt(c?.line)) err(`${p}.line`, 'must be an integer')
-    if (c?.startLine != null && !isInt(c.startLine)) err(`${p}.startLine`, 'must be an integer')
+    if (!isInt(c?.line) || c.line <= 0) err(`${p}.line`, 'must be a positive integer')
+    if (c?.startLine != null && (!isInt(c.startLine) || c.startLine <= 0)) err(`${p}.startLine`, 'must be a positive integer')
     if (c?.startLine != null && isInt(c.line) && c.startLine > c.line) err(`${p}.startLine`, 'must be <= line')
     if (!isStr(c?.body)) err(`${p}.body`, 'must be a non-empty string')
   })
