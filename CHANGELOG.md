@@ -1,5 +1,11 @@
 # hal-agent-skills
 
+## 0.4.0
+
+### Minor Changes
+
+- [#10](https://github.com/haldunanil/hal-agent-skills/pull/10) [`0c39bb3`](https://github.com/haldunanil/hal-agent-skills/commit/0c39bb39b02f64015cf59c7d477ce78f6a44dcc5) Thanks [@haldunanil](https://github.com/haldunanil)! - The pr-walkthrough HTML viewer can now leave **GitHub-style review comments**: drag the line-number gutter to comment on a range (or click a single line), or comment on a whole file. Comments render as inline threads, persist in `localStorage`, and **Copy review** exports them as JSON. A new **post-pr-review** skill posts that exported review to the PR via `gh` as one batched review.
+
 ## 0.3.0
 
 ### Minor Changes
