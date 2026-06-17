@@ -225,6 +225,7 @@ export function renderHtml(data, { assetsDir }) {
   const js = readFileSync(path.join(assetsDir, 'viewer.js'), 'utf8')
   const comments = readFileSync(path.join(assetsDir, 'comments.js'), 'utf8')
   const json = escapeForScript(JSON.stringify(data))
+  // Function replacers avoid `$`-pattern interpretation in css/js/json content.
   return tpl
     .replace(SLOT_STYLES, () => `<style>\n${css}\n</style>`)
     .replace(SLOT_VIEWER, () => `<script>\n${js}\n</script>`)
