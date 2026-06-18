@@ -11,6 +11,17 @@
   var md = window.markdownit ? window.markdownit({ html: false, linkify: true, breaks: false }) : null
   var app = document.getElementById('app')
 
+  var STORE_KEY = data && data.pr ? 'pr-walkthrough:' + data.pr.repo + '#' + data.pr.number + ':read' : null
+  function loadRead() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]') } catch (e) { return [] } }
+  var readSet = {}                                  // hunk id -> true
+  loadRead().forEach(function (id) { readSet[id] = true })
+  function saveRead() { try { localStorage.setItem(STORE_KEY, JSON.stringify(Object.keys(readSet))) } catch (e) {} }
+  function setHunkRead(id, on) {
+    if (on) readSet[id] = true; else delete readSet[id]
+    saveRead()
+    if (window.__wtv && window.__wtv.refreshViewed) window.__wtv.refreshViewed()
+  }
+
   var EXT_LANG = {
     ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript',
     py: 'python', rb: 'ruby', go: 'go', rs: 'rust', java: 'java', kt: 'kotlin', swift: 'swift',
@@ -65,18 +76,10 @@
     return [num, td]
   }
 
-  function appendRow(table, left, right) {
-    var tr = el('tr')
-    tr.appendChild(left[0]); tr.appendChild(left[1]); tr.appendChild(right[0]); tr.appendChild(right[1])
-    table.appendChild(tr)
-  }
-
-  function buildDiff(diffText, lang) {
+  function buildDiff(diffText, lang, path) {
     var wrap = el('div', 'diff-wrap')
     var lines = diffText.split('\n')
 
-    // Preserve pre-hunk metadata (rename/copy/mode changes) so renames and
-    // header-only diffs show something instead of an empty table.
     var META = /^(similarity index|dissimilarity index|rename from|rename to|copy from|copy to|new file mode|deleted file mode) /
     var i = 0, metaLines = []
     while (i < lines.length && lines[i].slice(0, 2) !== '@@') {
@@ -90,8 +93,6 @@
     }
 
     var table = el('table', 'diff')
-    // colgroup pins the gutter widths under table-layout:fixed (the first row is a
-    // colspan'd hunk separator, so per-cell widths alone are ignored).
     var cg = document.createElement('colgroup')
     ;['c-gutter', 'c-code', 'c-gutter', 'c-code'].forEach(function (c) {
       var col = document.createElement('col'); col.className = c; cg.appendChild(col)
@@ -103,8 +104,17 @@
       var hh = parseHunkHeader(lines[i])
       if (!hh) { i++; continue }
       rendered = true
-      var sep = el('tr', 'hunksep'); var sepTd = el('td', null, lines[i]); sepTd.colSpan = 4
-      sep.appendChild(sepTd); table.appendChild(sep)
+      var hunkId = path + '@' + hh.newStart
+      var tb = el('tbody', 'hunk'); tb.setAttribute('data-hunk-id', hunkId)
+      if (readSet[hunkId]) tb.classList.add('collapsed')
+
+      var sep = el('tr', 'hunksep')
+      var sepTd = el('td', null); sepTd.colSpan = 4
+      sepTd.appendChild(el('span', 'hcaret', '▾'))
+      sepTd.appendChild(el('span', 'htext', lines[i]))
+      sepTd.appendChild(el('span', 'hread', '✓ read'))
+      sep.appendChild(sepTd); tb.appendChild(sep)
+
       var oldNo = hh.oldStart, newNo = hh.newStart
       i++
       var dels = [], adds = []
@@ -114,24 +124,29 @@
           var d = dels[k], a = adds[k]
           var left = d ? codeCell('left', d.no, d.text, 'del', lang) : codeCell('left', '', '', 'empty', lang)
           var right = a ? codeCell('right', a.no, a.text, 'add', lang) : codeCell('right', '', '', 'empty', lang)
-          appendRow(table, left, right)
+          var tr = el('tr')
+          tr.appendChild(left[0]); tr.appendChild(left[1]); tr.appendChild(right[0]); tr.appendChild(right[1])
+          tb.appendChild(tr)
         }
         dels = []; adds = []
       }
       for (; i < lines.length && lines[i].slice(0, 2) !== '@@'; i++) {
         var ln = lines[i]
-        if (ln === '') continue                        // trailing-newline split artifact (real blank context is ' ')
-        if (ln.charAt(0) === '\\') continue            // "\ No newline at end of file"
+        if (ln === '') continue
+        if (ln.charAt(0) === '\\') continue
         var tag = ln.charAt(0), text = ln.slice(1)
         if (tag === '-') dels.push({ no: oldNo++, text: text })
         else if (tag === '+') adds.push({ no: newNo++, text: text })
         else {
           flush()
-          appendRow(table, codeCell('left', oldNo, text, 'ctx', lang), codeCell('right', newNo, text, 'ctx', lang))
+          var l = codeCell('left', oldNo, text, 'ctx', lang), r = codeCell('right', newNo, text, 'ctx', lang)
+          var trc = el('tr'); trc.appendChild(l[0]); trc.appendChild(l[1]); trc.appendChild(r[0]); trc.appendChild(r[1])
+          tb.appendChild(trc)
           oldNo++; newNo++
         }
       }
       flush()
+      table.appendChild(tb)
     }
 
     if (rendered) wrap.appendChild(table)
@@ -168,7 +183,7 @@
     body.appendChild(prose(s.narrative))
     ;(s.contexts || []).forEach(function (c) { body.appendChild(contextBlock(c)) })
     if (s.kind === 'normal' && s.resolvedDiff) {
-      body.appendChild(buildDiff(s.resolvedDiff, langOf(s.file)))
+      body.appendChild(buildDiff(s.resolvedDiff, langOf(s.file), s.file))
     } else if (s.kind !== 'normal') {
       var txt = s.note || ''
       if (s.kind === 'generated' && s.derivedFrom) txt += '\n\n_generated from `' + s.derivedFrom + '`_'
@@ -327,6 +342,16 @@
       })
     }, { rootMargin: '-10% 0px -80% 0px' })
     main.querySelectorAll('.file').forEach(function (f) { actObs.observe(f) })
+
+    // per-hunk collapse: clicking a hunk separator toggles that hunk and its read state
+    main.addEventListener('click', function (e) {
+      var sep = e.target.closest ? e.target.closest('tr.hunksep') : null
+      if (!sep) return
+      var tb = sep.parentNode
+      if (!tb || !tb.classList.contains('hunk')) return
+      var collapsed = tb.classList.toggle('collapsed')
+      setHunkRead(tb.getAttribute('data-hunk-id'), collapsed)
+    })
   }
 
   render()

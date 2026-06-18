@@ -140,3 +140,14 @@ tr.wt-thread-row > td, .wt-file-card { padding: 0; }
 .wt-panel-it .wt-snip { color: var(--muted); }
 .wt-panel-f { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 12px; border-top: 1px solid var(--border); flex: 0 0 auto; }
 .wt-flash { outline: 2px solid var(--link); outline-offset: -2px; border-radius: 3px; }
+
+/* ---- per-hunk collapse + read ---- */
+table.diff tr.hunksep td { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+table.diff tr.hunksep .hcaret { color: var(--muted); transition: transform .12s; }
+tbody.hunk.collapsed tr.hunksep .hcaret { transform: rotate(-90deg); }
+table.diff tr.hunksep .htext { font-family: ui-monospace, monospace; }
+table.diff tr.hunksep .hread { margin-left: auto; color: var(--add-num); font-size: 11px; visibility: hidden; }
+tbody.hunk.collapsed tr.hunksep .hread { visibility: visible; }
+tbody.hunk.collapsed tr:not(.hunksep) { display: none; }
+/* hunk header sticks just below the file header while scrolling a long block */
+table.diff tr.hunksep { position: sticky; top: 40px; z-index: 1; }
