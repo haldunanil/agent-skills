@@ -176,8 +176,8 @@
       })
       bar.appendChild(sg)
     }
-    tabW.addEventListener('click', function () { tabW.classList.add('wt-on'); tabP.classList.remove('wt-on'); ta.style.display = ''; preview.style.display = 'none' })
-    tabP.addEventListener('click', function () { tabP.classList.add('wt-on'); tabW.classList.remove('wt-on'); renderBody(preview, ta.value || '_Nothing to preview_'); ta.style.display = 'none'; preview.style.display = '' })
+    tabW.addEventListener('click', function () { root.classList.remove('wt-previewing'); tabW.classList.add('wt-on'); tabP.classList.remove('wt-on'); ta.style.display = ''; preview.style.display = 'none' })
+    tabP.addEventListener('click', function () { root.classList.add('wt-previewing'); tabP.classList.add('wt-on'); tabW.classList.remove('wt-on'); renderBody(preview, ta.value || '_Nothing to preview_'); ta.style.display = 'none'; preview.style.display = '' })
 
     root.appendChild(bar); root.appendChild(ta); root.appendChild(preview)
     return { root: root, getValue: function () { return ta.value.trim() }, focus: function () { ta.focus() } }
@@ -342,7 +342,7 @@
 
   function updateSidebarBadges() {
     var counts = {}
-    comments.forEach(function (c) { counts[c.path] = (counts[c.path] || 0) + 1 })
+    comments.forEach(function (c) { if (!c.outdated) counts[c.path] = (counts[c.path] || 0) + 1 })
     ;[].slice.call(document.querySelectorAll('.sidebar .file-link')).forEach(function (link) {
       var badge = link.querySelector('.badge'); if (!badge) return
       var n = counts[link.getAttribute('data-path')] || 0

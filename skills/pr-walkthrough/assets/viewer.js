@@ -30,6 +30,13 @@
     if (readCount === ph.hunkIds.length) return ph.fullyCovered ? 'viewed' : 'read'
     return 'read'
   }
+  function allHunksRead(path) {
+    var ph = (data.pathHunks || {})[path]
+    if (!ph || !ph.hunkIds.length) return false
+    for (var i = 0; i < ph.hunkIds.length; i++) if (!readSet[ph.hunkIds[i]]) return false
+    return true
+  }
+  function togglePathRead(path) { setPathRead(path, !allHunksRead(path)) }
   function setPathRead(path, on) {
     var ph = (data.pathHunks || {})[path]; if (!ph) return
     ph.hunkIds.forEach(function (id) { if (on) readSet[id] = true; else delete readSet[id] })
@@ -131,6 +138,8 @@
     }
 
     var table = el('table', 'diff')
+    // colgroup pins the gutter widths under table-layout:fixed (the first row is a
+    // colspan'd hunk separator, so per-cell widths alone are ignored).
     var cg = document.createElement('colgroup')
     ;['c-gutter', 'c-code', 'c-gutter', 'c-code'].forEach(function (c) {
       var col = document.createElement('col'); col.className = c; cg.appendChild(col)
@@ -170,8 +179,8 @@
       }
       for (; i < lines.length && lines[i].slice(0, 2) !== '@@'; i++) {
         var ln = lines[i]
-        if (ln === '') continue
-        if (ln.charAt(0) === '\\') continue
+        if (ln === '') continue                            // trailing-newline split artifact (real blank context is ' ')
+        if (ln.charAt(0) === '\\') continue               // "\ No newline at end of file"
         var tag = ln.charAt(0), text = ln.slice(1)
         if (tag === '-') dels.push({ no: oldNo++, text: text })
         else if (tag === '+') adds.push({ no: newNo++, text: text })
@@ -221,8 +230,7 @@
       vbox.setAttribute('data-path', s.file)
       vbox.addEventListener('click', function (e) {
         e.stopPropagation()                                 // don't toggle section collapse
-        var on = !sec.classList.contains('all-read')        // computed class set by refreshViewed
-        setPathRead(s.file, on)
+        togglePathRead(s.file)
       })
       head.appendChild(vbox)
     }
@@ -246,7 +254,12 @@
   function sidebarFileLink(s, id) {
     var a = el('a', 'file-link'); a.href = '#' + id; a.setAttribute('data-target', id)
     a.setAttribute('data-path', s.file)
-    a.appendChild(el('span', 'ck'))                       // read/viewed checkbox, state set by refreshViewed
+    var ck = el('span', 'ck')                             // read/viewed checkbox, state set by refreshViewed
+    if (s.kind === 'normal') {
+      ck.classList.add('clickable')
+      ck.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePathRead(s.file) })
+    }
+    a.appendChild(ck)
     var nm = el('span', 'nm')
     var slash = s.file.lastIndexOf('/')
     nm.appendChild(el('b', null, (s.unit ? s.unit + ' · ' : '') + (slash < 0 ? s.file : s.file.slice(slash + 1))))
