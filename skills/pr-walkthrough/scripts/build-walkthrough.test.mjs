@@ -355,3 +355,21 @@ test('pairTestsWithSources pairs only when the source is also changed', () => {
   assert.equal(pairs['src/b.test.ts'], undefined)           // b.ts absent → not paired
   assert.equal(pairs['src/a.ts'], undefined)                // sources are not keys
 })
+
+import { computePathHunks } from './build-walkthrough.mjs'
+
+test('computePathHunks: a full-file section covers the whole diff', () => {
+  const d = docWithSection({ lines: null, contexts: [] })   // shows the whole TWO_HUNK_DIFF
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  const ph = computePathHunks(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  assert.deepEqual(ph['src/user.ts'].hunkIds, ['src/user.ts@10', 'src/user.ts@130'])
+  assert.equal(ph['src/user.ts'].fullyCovered, true)
+})
+
+test('computePathHunks: a sliced section is partial coverage', () => {
+  const d = docWithSection({ lines: [10, 13], contexts: [] })   // shows only the first hunk
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  const ph = computePathHunks(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  assert.deepEqual(ph['src/user.ts'].hunkIds, ['src/user.ts@10'])
+  assert.equal(ph['src/user.ts'].fullyCovered, false)
+})

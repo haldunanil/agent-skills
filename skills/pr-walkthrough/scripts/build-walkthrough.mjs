@@ -179,6 +179,40 @@ export function pairTestsWithSources(paths) {
   return pairs
 }
 
+// ---------- per-path hunk index + coverage (read→viewed roll-up) ----------
+function hunkStarts(diffText) {
+  const out = []
+  for (const line of (diffText || '').split('\n')) {
+    const h = parseHunkHeader(line)
+    if (h) out.push(h.newStart)
+  }
+  return out
+}
+
+// Per path: the hunk ids the walkthrough actually shows (unioned across all its
+// sections) and whether those cover the file's complete diff. Requires sections
+// to have been resolved first (reads s.resolvedDiff).
+export function computePathHunks(data, provider) {
+  const shown = {}                                  // path -> Set<newStart>
+  for (const ch of data.chapters) {
+    for (const s of ch.sections) {
+      if (s.kind !== 'normal' || !s.resolvedDiff) continue
+      const set = shown[s.file] || (shown[s.file] = new Set())
+      for (const ns of hunkStarts(s.resolvedDiff)) set.add(ns)
+    }
+  }
+  const out = {}
+  for (const file of Object.keys(shown)) {
+    const full = hunkStarts(provider.fileDiff(file))
+    const has = shown[file]
+    out[file] = {
+      hunkIds: [...has].sort((a, b) => a - b).map((ns) => file + '@' + ns),
+      fullyCovered: full.length > 0 && full.every((ns) => has.has(ns)),
+    }
+  }
+  return out
+}
+
 // Diffs come from `gh pr diff` — GitHub's canonical PR diff, correct for open,
 // merged, AND fork PRs alike. (`git diff base...head` goes empty once a PR is
 // merged via a merge commit, because the base then contains the head.) Context
