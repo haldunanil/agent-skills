@@ -21,6 +21,44 @@
     saveRead()
     if (window.__wtv && window.__wtv.refreshViewed) window.__wtv.refreshViewed()
   }
+  function pathState(path) {
+    var ph = (data.pathHunks || {})[path]
+    if (!ph || !ph.hunkIds.length) return 'none'
+    var readCount = 0
+    ph.hunkIds.forEach(function (id) { if (readSet[id]) readCount++ })
+    if (readCount === 0) return 'none'
+    if (readCount === ph.hunkIds.length) return ph.fullyCovered ? 'viewed' : 'read'
+    return 'read'
+  }
+  function setPathRead(path, on) {
+    var ph = (data.pathHunks || {})[path]; if (!ph) return
+    ph.hunkIds.forEach(function (id) { if (on) readSet[id] = true; else delete readSet[id] })
+    saveRead()
+    // reflect collapse on every tbody for this path
+    document.querySelectorAll('tbody.hunk').forEach(function (tb) {
+      if (tb.getAttribute('data-hunk-id').indexOf(path + '@') === 0) tb.classList.toggle('collapsed', on)
+    })
+    refreshViewed()
+  }
+  function refreshViewed() {
+    var paths = Object.keys(data.pathHunks || {})
+    paths.forEach(function (path) {
+      var state = pathState(path)
+      var partial = (data.pathHunks[path] || {}).fullyCovered === false
+      document.querySelectorAll('[data-path="' + cssEscV(path) + '"]').forEach(function (node) {
+        node.classList.remove('st-read', 'st-viewed')
+        if (state === 'viewed') node.classList.add('st-viewed')
+        else if (state === 'read') node.classList.add('st-read')
+        var vbox = node.classList.contains('vbox') ? node : null
+        if (vbox) vbox.title = partial ? 'Partial coverage — won\'t mark Viewed on GitHub' : ''
+      })
+      document.querySelectorAll('section.file[data-path="' + cssEscV(path) + '"]').forEach(function (sec) {
+        sec.classList.toggle('all-read', state === 'viewed')
+      })
+    })
+  }
+  function cssEscV(s) { return String(s).replace(/["\\]/g, '\\$&') }
+  window.__wtv = { refreshViewed: refreshViewed }
 
   var EXT_LANG = {
     ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript',
@@ -176,6 +214,18 @@
       counts.innerHTML = '<span class="add">+' + st.add + '</span> <span class="del">−' + st.del + '</span>'
       head.appendChild(counts)
     }
+    if (s.kind === 'normal') {
+      var vbox = el('span', 'vbox')
+      vbox.appendChild(el('span', 'ck'))
+      vbox.appendChild(document.createTextNode('Viewed'))
+      vbox.setAttribute('data-path', s.file)
+      vbox.addEventListener('click', function (e) {
+        e.stopPropagation()                                 // don't toggle section collapse
+        var on = !sec.classList.contains('all-read')        // computed class set by refreshViewed
+        setPathRead(s.file, on)
+      })
+      head.appendChild(vbox)
+    }
     head.addEventListener('click', function () { sec.classList.toggle('collapsed') })
     sec.appendChild(head)
 
@@ -195,7 +245,14 @@
 
   function sidebarFileLink(s, id) {
     var a = el('a', 'file-link'); a.href = '#' + id; a.setAttribute('data-target', id)
-    a.appendChild(el('span', 'name', (s.unit ? s.unit + ' ' : '') + s.file))
+    a.setAttribute('data-path', s.file)
+    a.appendChild(el('span', 'ck'))                       // read/viewed checkbox, state set by refreshViewed
+    var nm = el('span', 'nm')
+    var slash = s.file.lastIndexOf('/')
+    nm.appendChild(el('b', null, (s.unit ? s.unit + ' · ' : '') + (slash < 0 ? s.file : s.file.slice(slash + 1))))
+    if (slash >= 0) nm.appendChild(el('span', 'dir', s.file.slice(0, slash + 1)))
+    a.appendChild(nm)
+    a.appendChild(el('span', 'badge'))                    // comment count, filled by comments.js
     if (s.kind === 'normal' && s.resolvedDiff) {
       var st = diffStats(s.resolvedDiff), c = el('span', 'counts')
       c.innerHTML = '<span class="add">+' + st.add + '</span> <span class="del">−' + st.del + '</span>'
@@ -302,9 +359,15 @@
       chapter.appendChild(el('h2', null, ch.title))
       chapter.appendChild(prose(ch.intro))
 
+      var linkByPath = {}
       ch.sections.forEach(function (s, si) {
         var id = 'sec-' + ci + '-' + si
-        navChap.appendChild(sidebarFileLink(s, id))
+        var link = sidebarFileLink(s, id)
+        var src = (data.testPairs || {})[s.file]
+        var parentLink = src ? linkByPath[src] : null
+        if (parentLink) { link.classList.add('nested'); parentLink.after(link) }
+        else { navChap.appendChild(link) }
+        linkByPath[s.file] = link
         chapter.appendChild(sectionEl(s, id))
       })
 
@@ -352,6 +415,8 @@
       var collapsed = tb.classList.toggle('collapsed')
       setHunkRead(tb.getAttribute('data-hunk-id'), collapsed)
     })
+
+    refreshViewed()
   }
 
   render()
