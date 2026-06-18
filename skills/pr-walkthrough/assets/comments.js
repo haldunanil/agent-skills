@@ -27,8 +27,20 @@
   function remove(id) { comments = comments.filter(function (c) { return c.id !== id }); save(); refresh() }
   function byId(id) { for (var i = 0; i < comments.length; i++) if (comments[i].id === id) return comments[i]; return null }
 
+  function readSetIds() {
+    try { return JSON.parse(localStorage.getItem(KEY + ':read') || '[]') } catch (e) { return [] }
+  }
+  // Mirror of build-walkthrough.mjs viewedFilesFrom — keep in sync.
+  function viewedFiles() {
+    var ph = data.pathHunks || {}
+    var read = {}; readSetIds().forEach(function (id) { read[id] = true })
+    return Object.keys(ph).filter(function (p) {
+      var h = ph[p]
+      return h.fullyCovered && h.hunkIds.length > 0 && h.hunkIds.every(function (id) { return read[id] })
+    })
+  }
   function exportReview() {
-    var out = { repo: pr.repo, pr: pr.number, commit: pr.commit, body: '', comments: [], fileComments: [] }
+    var out = { repo: pr.repo, pr: pr.number, commit: pr.commit, body: '', comments: [], fileComments: [], viewedFiles: viewedFiles() }
     comments.forEach(function (c) {
       if (c.kind === 'file') { out.fileComments.push({ path: c.path, body: c.body }) }
       else if (!c.outdated) {
@@ -328,8 +340,18 @@
     foot.appendChild(clear); foot.appendChild(copy); panel.appendChild(foot)
   }
 
+  function updateSidebarBadges() {
+    var counts = {}
+    comments.forEach(function (c) { counts[c.path] = (counts[c.path] || 0) + 1 })
+    ;[].slice.call(document.querySelectorAll('.sidebar .file-link')).forEach(function (link) {
+      var badge = link.querySelector('.badge'); if (!badge) return
+      var n = counts[link.getAttribute('data-path')] || 0
+      badge.textContent = n ? '💬' + n : ''
+    })
+  }
+
   // ---- refresh everything from the store ----
-  function refresh() { clearRendered(); renderLineThreads(); renderFileCards(); renderPanel() }
+  function refresh() { clearRendered(); renderLineThreads(); renderFileCards(); renderPanel(); updateSidebarBadges() }
 
   wireFileButtons()
   refresh()
