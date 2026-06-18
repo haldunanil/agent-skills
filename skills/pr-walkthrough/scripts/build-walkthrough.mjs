@@ -150,6 +150,35 @@ export function splitPrDiff(fullDiff) {
   return map
 }
 
+// ---------- test grouping (sidebar nesting) ----------
+// Given a path, return the source path it tests, or null if it isn't a test file.
+export function sourceForTest(p) {
+  // strip an enclosing __tests__/ dir: src/__tests__/user.ts -> src/user.ts
+  const q = p.replace(/(^|\/)__tests__\//, '$1')
+  const slash = q.lastIndexOf('/')
+  const dir = slash < 0 ? '' : q.slice(0, slash + 1)
+  const base = slash < 0 ? q : q.slice(slash + 1)
+  let m = /^(.+)\.(test|spec)\.([^.]+)$/.exec(base)   // user.test.ts -> user.ts
+  if (m) return dir + m[1] + '.' + m[3]
+  m = /^test_(.+\.py)$/.exec(base)                    // test_client.py -> client.py
+  if (m) return dir + m[1]
+  m = /^(.+)_test\.go$/.exec(base)                    // server_test.go -> server.go
+  if (m) return dir + m[1] + '.go'
+  if (q !== p) return dir + base                      // __tests__/user.ts -> user.ts
+  return null
+}
+
+// Map each changed test file to the source it tests, when that source is also changed.
+export function pairTestsWithSources(paths) {
+  const set = new Set(paths)
+  const pairs = {}
+  for (const p of paths) {
+    const src = sourceForTest(p)
+    if (src && set.has(src)) pairs[p] = src
+  }
+  return pairs
+}
+
 // Diffs come from `gh pr diff` — GitHub's canonical PR diff, correct for open,
 // merged, AND fork PRs alike. (`git diff base...head` goes empty once a PR is
 // merged via a merge commit, because the base then contains the head.) Context
