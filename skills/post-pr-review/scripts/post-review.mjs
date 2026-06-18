@@ -58,6 +58,16 @@ export function fileCommentApiArgs(r) {
   }))
 }
 
+// Hint shown when gh returns a bare 422 with no detail: the agent should retry once with
+// GH_DEBUG=api to surface GitHub's validation response. Gated on GH_DEBUG so it stays silent on
+// the debug rerun (where details are already visible).
+export function maybe422Hint(message, env = process.env) {
+  if (/\b422\b/.test(message) && !env.GH_DEBUG) {
+    return 'GitHub returned HTTP 422 without details. Retry once with GH_DEBUG=api unless Already posted includes a review.'
+  }
+  return null
+}
+
 // Default runner: POST a JSON body via `gh api <endpoint> --method POST --input -`.
 function ghPost(endpoint, body) {
   const out = execFileSync('gh', ['api', endpoint, '--method', 'POST', '--input', '-'], {
@@ -99,6 +109,8 @@ function main(argv) {
   catch (e) {
     console.error(e.message)
     if (e.posted && e.posted.length) console.error('Already posted: ' + JSON.stringify(e.posted))
+    const hint = maybe422Hint(e.message)
+    if (hint) console.error(hint)
     process.exit(1)
   }
   console.log(JSON.stringify({ ok: true, posted }, null, 2))
