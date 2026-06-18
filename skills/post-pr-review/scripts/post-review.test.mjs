@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { validateReview, reviewApiArgs, fileCommentApiArgs, postReview } from './post-review.mjs'
+import { validateReview, reviewApiArgs, fileCommentApiArgs, postReview, maybe422Hint } from './post-review.mjs'
 
 function review(over = {}) {
   return Object.assign({
@@ -72,6 +72,12 @@ test('postReview posts the review then each file comment', () => {
   assert.equal(calls[1].body.subject_type, 'file')
   assert.equal(posted.length, 2)
   assert.equal(posted[0].type, 'review')
+})
+
+test('maybe422Hint suggests GH_DEBUG on a bare 422, not when already debugging or on other errors', () => {
+  assert.match(maybe422Hint('gh: Unprocessable Entity (HTTP 422)', {}), /GH_DEBUG=api/)
+  assert.equal(maybe422Hint('gh: Unprocessable Entity (HTTP 422)', { GH_DEBUG: 'api' }), null)
+  assert.equal(maybe422Hint('gh: Not Found (HTTP 404)', {}), null)
 })
 
 test('postReview reports what already posted on partial failure', () => {
