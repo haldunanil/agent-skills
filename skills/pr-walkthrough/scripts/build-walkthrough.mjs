@@ -213,6 +213,26 @@ export function computePathHunks(data, provider) {
   return out
 }
 
+// Paths whose every shown hunk is read AND whose full diff is covered.
+// NOTE: comments.js replicates this filter inline at export time — keep them in sync.
+export function viewedFilesFrom(pathHunks, readIds) {
+  const read = new Set(readIds)
+  return Object.keys(pathHunks).filter((p) => {
+    const ph = pathHunks[p]
+    return ph.fullyCovered && ph.hunkIds.length > 0 && ph.hunkIds.every((id) => read.has(id))
+  })
+}
+
+// Attach page annotations consumed by the viewer/comments scripts. Run after
+// resolveSections so resolvedDiff is available to computePathHunks.
+export function annotate(data, provider) {
+  const paths = []
+  for (const ch of data.chapters) for (const s of ch.sections) paths.push(s.file)
+  data.testPairs = pairTestsWithSources([...new Set(paths)])
+  data.pathHunks = computePathHunks(data, provider)
+  return data
+}
+
 // Diffs come from `gh pr diff` — GitHub's canonical PR diff, correct for open,
 // merged, AND fork PRs alike. (`git diff base...head` goes empty once a PR is
 // merged via a merge commit, because the base then contains the head.) Context
@@ -311,6 +331,7 @@ export function buildDocument(data, { provider, assetsDir }) {
     e.coverage = cov
     throw e
   }
+  annotate(data, provider)
   return renderHtml(data, { assetsDir })
 }
 

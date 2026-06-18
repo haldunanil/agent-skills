@@ -373,3 +373,35 @@ test('computePathHunks: a sliced section is partial coverage', () => {
   assert.deepEqual(ph['src/user.ts'].hunkIds, ['src/user.ts@10'])
   assert.equal(ph['src/user.ts'].fullyCovered, false)
 })
+
+import { viewedFilesFrom, annotate } from './build-walkthrough.mjs'
+
+test('viewedFilesFrom returns only fully-covered, fully-read paths', () => {
+  const ph = {
+    'a.ts': { hunkIds: ['a.ts@1', 'a.ts@9'], fullyCovered: true },
+    'b.ts': { hunkIds: ['b.ts@1'], fullyCovered: false },   // partial: never viewed
+  }
+  assert.deepEqual(viewedFilesFrom(ph, ['a.ts@1', 'a.ts@9']), ['a.ts'])         // all read
+  assert.deepEqual(viewedFilesFrom(ph, ['a.ts@1']), [])                          // one hunk unread
+  assert.deepEqual(viewedFilesFrom(ph, ['b.ts@1']), [])                          // partial coverage
+})
+
+test('annotate attaches testPairs and pathHunks to the document', () => {
+  const d = validData()
+  d.chapters[0].sections.push({ file: 'src/user.test.ts', unit: null, lines: null, kind: 'normal', narrative: 'tests' })
+  const provider = fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF, 'src/user.test.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'x' })
+  resolveSections(d, provider)
+  annotate(d, provider)
+  assert.equal(d.testPairs['src/user.test.ts'], 'src/user.ts')
+  assert.ok(d.pathHunks['src/user.ts'])
+  assert.equal(d.pathHunks['src/user.ts'].fullyCovered, true)
+})
+
+test('buildDocument embeds testPairs and pathHunks in the page data', () => {
+  const html = buildDocument(validData(), {
+    assetsDir: REAL_ASSETS,
+    provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'x' }),
+  })
+  assert.ok(html.includes('"pathHunks"'))
+  assert.ok(html.includes('"testPairs"'))
+})
