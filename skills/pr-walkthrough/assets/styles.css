@@ -156,6 +156,17 @@ tr.wt-thread-row > td, .wt-file-card { padding: 0; }
 .wt-panel-f { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 12px; border-top: 1px solid var(--border); flex: 0 0 auto; }
 .wt-flash { outline: 2px solid var(--link); outline-offset: -2px; border-radius: 3px; }
 
+/* ---- composer toolbar + tabs ---- */
+.wt-bar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 6px; }
+.wt-tabs { display: flex; gap: 2px; margin-right: 6px; }
+.wt-tab { padding: 3px 9px; border-radius: 6px; color: var(--muted); cursor: pointer; font-size: 12px; }
+.wt-tab.wt-on { background: var(--bg); color: var(--fg); font-weight: 600; }
+.wt-tbtn { background: none; border: none; color: var(--muted); cursor: pointer; border-radius: 6px; padding: 3px 7px; font-size: 13px; }
+.wt-tbtn:hover { background: var(--bg); color: var(--fg); }
+.wt-suggest { margin-left: auto; border: 1px solid var(--border); }
+.wt-suggest:hover { border-color: var(--add-num); }
+.wt-preview { min-height: 40px; padding: 4px 2px; }
+
 /* ---- per-hunk collapse + read ---- */
 table.diff tr.hunksep td { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 table.diff tr.hunksep .hcaret { color: var(--muted); transition: transform .12s; }
