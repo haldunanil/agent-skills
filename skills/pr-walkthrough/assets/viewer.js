@@ -45,6 +45,10 @@
     document.querySelectorAll('tbody.hunk').forEach(function (tb) {
       if (tb.getAttribute('data-hunk-id').indexOf(path + '@') === 0) tb.classList.toggle('collapsed', on)
     })
+    // marking Viewed collapses the whole file block (GitHub-style); unchecking expands it
+    document.querySelectorAll('section.file[data-path="' + cssEscV(path) + '"]').forEach(function (sec) {
+      sec.classList.toggle('collapsed', on)
+    })
     refreshViewed()
   }
   function refreshViewed() {
@@ -156,10 +160,14 @@
       if (readSet[hunkId]) tb.classList.add('collapsed')
 
       var sep = el('tr', 'hunksep')
+      // colSpan on a <td> is ignored once the cell is display:flex (it stops being a
+      // table cell), so keep the td a plain cell and flex an inner wrapper instead.
       var sepTd = el('td', null); sepTd.colSpan = 4
-      sepTd.appendChild(el('span', 'hcaret', '▾'))
-      sepTd.appendChild(el('span', 'htext', lines[i]))
-      sepTd.appendChild(el('span', 'hread', '✓ read'))
+      var sepInner = el('div', 'hunksep-inner')
+      sepInner.appendChild(el('span', 'hcaret', '▾'))
+      sepInner.appendChild(el('span', 'htext', lines[i]))
+      sepInner.appendChild(el('span', 'hread', '✓ read'))
+      sepTd.appendChild(sepInner)
       sep.appendChild(sepTd); tb.appendChild(sep)
 
       var oldNo = hh.oldStart, newNo = hh.newStart

@@ -171,7 +171,8 @@ tr.wt-thread-row > td, .wt-file-card { padding: 0; }
 .wt-composer.wt-previewing .wt-tbtn, .wt-composer.wt-previewing .wt-suggest { display: none; }
 
 /* ---- per-hunk collapse + read ---- */
-table.diff tr.hunksep td { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+table.diff tr.hunksep td { cursor: pointer; }
+table.diff tr.hunksep .hunksep-inner { display: flex; align-items: center; gap: 8px; }
 table.diff tr.hunksep .hcaret { color: var(--muted); transition: transform .12s; }
 tbody.hunk.collapsed tr.hunksep .hcaret { transform: rotate(-90deg); }
 table.diff tr.hunksep .htext { font-family: ui-monospace, monospace; }
