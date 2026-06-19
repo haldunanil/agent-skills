@@ -18,7 +18,8 @@ The user has pasted a JSON object that looks like:
 ```jsonc
 { "repo": "owner/name", "pr": 5, "commit": "<sha>", "body": "",
   "comments": [ { "path": "...", "side": "RIGHT", "line": 12, "body": "..." } ],
-  "fileComments": [ { "path": "...", "body": "..." } ] }
+  "fileComments": [ { "path": "...", "body": "..." } ],
+  "viewedFiles": [ "path/to/fully-reviewed-file" ] }
 ```
 
 Write it **verbatim** to a temp file using the `Write` tool:
@@ -37,7 +38,7 @@ node /mnt/skills/user/post-pr-review/scripts/post-review.mjs /tmp/pr-reviews/rev
 
 (From this repo rather than an installed skill, use `skills/post-pr-review/scripts/post-review.mjs`.)
 
-- On success the script prints `{ "ok": true, "posted": [...] }` with the created review/comment URLs. Report the review URL to the user.
+- On success the script prints `{ "ok": true, "posted": [...], "viewed": [...] }` with the created review/comment URLs and any files marked viewed. Report the review URL to the user.
 - On a **validation error** it exits non-zero and prints what's wrong with the JSON — relay it and stop (do not guess fixes to the user's comments).
 - On a **`gh` error** (not authenticated, no network, PR not found) it prints the error and any comments already posted — relay both so the user can re-auth and retry. **If "Already posted" includes a `review`**, warn the user that re-running posts a *duplicate* review (GitHub reviews are not idempotent); they should re-auth and post only the remaining file comments individually rather than re-running the whole review.
   - **Sandbox can't reach `api.github.com`:** rerun the same command with network escalation/approval.
@@ -46,6 +47,7 @@ node /mnt/skills/user/post-pr-review/scripts/post-review.mjs /tmp/pr-reviews/rev
     GH_DEBUG=api node /mnt/skills/user/post-pr-review/scripts/post-review.mjs /tmp/pr-reviews/review.json
     ```
     If it now succeeds, report the review URL normally. If it still fails, relay the full debug response (the real validation error). **Never** rerun the full payload if "Already posted" already includes a `review`.
+- After posting comments, any `viewedFiles` are marked **viewed** on the PR's "Files changed" tab via GitHub's `markFileAsViewed` mutation (one call per path). A review may contain only `viewedFiles` (no comments) — it then just marks files viewed. The script prints `{ "ok": true, "posted": [...], "viewed": [...] }`; report the viewed count alongside the review URL.
 
 ### Step 3: Report
 
