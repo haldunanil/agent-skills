@@ -153,7 +153,15 @@ function main(argv) {
     if (hint) console.error(hint)
     process.exit(1)
   }
-  console.log(JSON.stringify({ ok: true, posted }, null, 2))
+  let viewed = []
+  try { viewed = markFilesViewed(r) }
+  catch (e) {
+    console.error(e.message)
+    if (posted.length) console.error('Already posted: ' + JSON.stringify(posted))
+    if (e.viewed && e.viewed.length) console.error('Marked viewed: ' + JSON.stringify(e.viewed))
+    process.exit(1)
+  }
+  console.log(JSON.stringify({ ok: true, posted, viewed }, null, 2))
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
