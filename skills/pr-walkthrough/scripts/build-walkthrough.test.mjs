@@ -336,3 +336,72 @@ test('splitPrDiff captures full, non-bleeding per-file sections', () => {
 test('splitPrDiff returns an empty map for empty input', () => {
   assert.deepEqual(splitPrDiff(''), {})
 })
+
+import { sourceForTest, pairTestsWithSources } from './build-walkthrough.mjs'
+
+test('sourceForTest maps common test conventions to their source', () => {
+  assert.equal(sourceForTest('src/auth/tokens.test.ts'), 'src/auth/tokens.ts')
+  assert.equal(sourceForTest('src/auth/tokens.spec.tsx'), 'src/auth/tokens.tsx')
+  assert.equal(sourceForTest('pkg/api/test_client.py'), 'pkg/api/client.py')
+  assert.equal(sourceForTest('pkg/api/server_test.go'), 'pkg/api/server.go')
+  assert.equal(sourceForTest('src/__tests__/user.ts'), 'src/user.ts')
+  assert.equal(sourceForTest('src/__tests__/user.test.ts'), 'src/user.ts')
+  assert.equal(sourceForTest('src/auth/tokens.ts'), null)   // not a test file
+})
+
+test('pairTestsWithSources pairs only when the source is also changed', () => {
+  const pairs = pairTestsWithSources(['src/a.ts', 'src/a.test.ts', 'src/b.test.ts'])
+  assert.equal(pairs['src/a.test.ts'], 'src/a.ts')          // a.ts present → paired
+  assert.equal(pairs['src/b.test.ts'], undefined)           // b.ts absent → not paired
+  assert.equal(pairs['src/a.ts'], undefined)                // sources are not keys
+})
+
+import { computePathHunks } from './build-walkthrough.mjs'
+
+test('computePathHunks: a full-file section covers the whole diff', () => {
+  const d = docWithSection({ lines: null, contexts: [] })   // shows the whole TWO_HUNK_DIFF
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  const ph = computePathHunks(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  assert.deepEqual(ph['src/user.ts'].hunkIds, ['src/user.ts@10', 'src/user.ts@130'])
+  assert.equal(ph['src/user.ts'].fullyCovered, true)
+})
+
+test('computePathHunks: a sliced section is partial coverage', () => {
+  const d = docWithSection({ lines: [10, 13], contexts: [] })   // shows only the first hunk
+  resolveSections(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  const ph = computePathHunks(d, fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, {}))
+  assert.deepEqual(ph['src/user.ts'].hunkIds, ['src/user.ts@10'])
+  assert.equal(ph['src/user.ts'].fullyCovered, false)
+})
+
+import { viewedFilesFrom, annotate } from './build-walkthrough.mjs'
+
+test('viewedFilesFrom returns only fully-covered, fully-read paths', () => {
+  const ph = {
+    'a.ts': { hunkIds: ['a.ts@1', 'a.ts@9'], fullyCovered: true },
+    'b.ts': { hunkIds: ['b.ts@1'], fullyCovered: false },   // partial: never viewed
+  }
+  assert.deepEqual(viewedFilesFrom(ph, ['a.ts@1', 'a.ts@9']), ['a.ts'])         // all read
+  assert.deepEqual(viewedFilesFrom(ph, ['a.ts@1']), [])                          // one hunk unread
+  assert.deepEqual(viewedFilesFrom(ph, ['b.ts@1']), [])                          // partial coverage
+})
+
+test('annotate attaches testPairs and pathHunks to the document', () => {
+  const d = validData()
+  d.chapters[0].sections.push({ file: 'src/user.test.ts', unit: null, lines: null, kind: 'normal', narrative: 'tests' })
+  const provider = fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF, 'src/user.test.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'x' })
+  resolveSections(d, provider)
+  annotate(d, provider)
+  assert.equal(d.testPairs['src/user.test.ts'], 'src/user.ts')
+  assert.ok(d.pathHunks['src/user.ts'])
+  assert.equal(d.pathHunks['src/user.ts'].fullyCovered, true)
+})
+
+test('buildDocument embeds testPairs and pathHunks in the page data', () => {
+  const html = buildDocument(validData(), {
+    assetsDir: REAL_ASSETS,
+    provider: fakeProvider({ 'src/user.ts': TWO_HUNK_DIFF }, { 'src/helper.ts': 'x' }),
+  })
+  assert.ok(html.includes('"pathHunks"'))
+  assert.ok(html.includes('"testPairs"'))
+})

@@ -27,8 +27,20 @@
   function remove(id) { comments = comments.filter(function (c) { return c.id !== id }); save(); refresh() }
   function byId(id) { for (var i = 0; i < comments.length; i++) if (comments[i].id === id) return comments[i]; return null }
 
+  function readSetIds() {
+    try { return JSON.parse(localStorage.getItem(KEY + ':read') || '[]') } catch (e) { return [] }
+  }
+  // Mirror of build-walkthrough.mjs viewedFilesFrom — keep in sync.
+  function viewedFiles() {
+    var ph = data.pathHunks || {}
+    var read = {}; readSetIds().forEach(function (id) { read[id] = true })
+    return Object.keys(ph).filter(function (p) {
+      var h = ph[p]
+      return h.fullyCovered && h.hunkIds.length > 0 && h.hunkIds.every(function (id) { return read[id] })
+    })
+  }
   function exportReview() {
-    var out = { repo: pr.repo, pr: pr.number, commit: pr.commit, body: '', comments: [], fileComments: [] }
+    var out = { repo: pr.repo, pr: pr.number, commit: pr.commit, body: '', comments: [], fileComments: [], viewedFiles: viewedFiles() }
     comments.forEach(function (c) {
       if (c.kind === 'file') { out.fileComments.push({ path: c.path, body: c.body }) }
       else if (!c.outdated) {
@@ -89,7 +101,13 @@
     var lines = range.map(function (c) { return parseInt(c.textContent, 10) })
     var lo = Math.min.apply(null, lines), hi = Math.max.apply(null, lines)
     var anchorRow = range[range.length - 1].parentNode
-    openComposer(anchorRow, { kind: 'line', path: d.sec.getAttribute('data-path'), side: d.side, line: hi, startLine: lo === hi ? null : lo })
+    var suggestText = d.side === 'RIGHT'
+      ? range.map(function (c) {
+          var code = c.parentNode.querySelector('td.rc code')
+          return code ? code.textContent : ''
+        }).join('\n')
+      : ''
+    openComposer(anchorRow, { kind: 'line', path: d.sec.getAttribute('data-path'), side: d.side, line: hi, startLine: lo === hi ? null : lo, suggestText: suggestText })
   })
   // selected cells = contiguous run between start and end on that side, clamped to one hunk (no hunksep between)
   function selectedCells(d) {
@@ -116,24 +134,72 @@
   // ---- composer ----
   var composerRow = null
   function closeComposer() { if (composerRow) { composerRow.remove(); composerRow = null } }
+
+  function buildComposer(opts) {
+    opts = opts || {}
+    var root = el('div', 'wt-composer')
+    var bar = el('div', 'wt-bar')
+    var tabs = el('div', 'wt-tabs')
+    var tabW = el('span', 'wt-tab wt-on', 'Write'), tabP = el('span', 'wt-tab', 'Preview')
+    tabs.appendChild(tabW); tabs.appendChild(tabP); bar.appendChild(tabs)
+
+    var ta = el('textarea'); ta.placeholder = opts.placeholder || 'Comment…'
+    var preview = el('div', 'wt-preview prose'); preview.style.display = 'none'
+
+    function wrap(before, after, sample) {
+      var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value
+      var sel = v.slice(s, e) || sample || ''
+      ta.value = v.slice(0, s) + before + sel + after + v.slice(e)
+      ta.focus(); ta.selectionStart = s + before.length; ta.selectionEnd = s + before.length + sel.length
+    }
+    var TOOLS = [
+      ['B', 'Bold', function () { wrap('**', '**', 'bold') }],
+      ['i', 'Italic', function () { wrap('_', '_', 'italic') }],
+      ['</>', 'Code', function () { wrap('`', '`', 'code') }],
+      ['▤', 'Code block', function () { wrap('\n```\n', '\n```\n', 'code') }],
+      ['🔗', 'Link', function () { wrap('[', '](url)', 'text') }],
+      ['❝', 'Quote', function () { wrap('> ', '', 'quote') }],
+      ['☰', 'List', function () { wrap('- ', '', 'item') }],
+    ]
+    TOOLS.forEach(function (t) {
+      var b = el('button', 'wt-tbtn', t[0]); b.type = 'button'; b.title = t[1]
+      b.addEventListener('click', function () { tabW.click(); t[2]() })
+      bar.appendChild(b)
+    })
+    if (opts.suggestText) {
+      var sg = el('button', 'wt-tbtn wt-suggest', '± Suggest'); sg.type = 'button'; sg.title = 'Insert a suggestion prefilled with the selected lines'
+      sg.addEventListener('click', function () {
+        tabW.click()
+        var pre = ta.value && ta.value.slice(-1) !== '\n' ? ta.value + '\n' : ta.value
+        ta.value = pre + '```suggestion\n' + opts.suggestText + '\n```\n'
+        ta.focus()
+      })
+      bar.appendChild(sg)
+    }
+    tabW.addEventListener('click', function () { root.classList.remove('wt-previewing'); tabW.classList.add('wt-on'); tabP.classList.remove('wt-on'); ta.style.display = ''; preview.style.display = 'none' })
+    tabP.addEventListener('click', function () { root.classList.add('wt-previewing'); tabP.classList.add('wt-on'); tabW.classList.remove('wt-on'); renderBody(preview, ta.value || '_Nothing to preview_'); ta.style.display = 'none'; preview.style.display = '' })
+
+    root.appendChild(bar); root.appendChild(ta); root.appendChild(preview)
+    return { root: root, getValue: function () { return ta.value.trim() }, focus: function () { ta.focus() } }
+  }
+
   function openComposer(afterRow, anchor) {
     closeComposer()
     var tr = el('tr', 'wt-composer-row')
     var td = el('td'); td.colSpan = 4
-    var box = el('div', 'wt-composer')
-    var ta = el('textarea'); ta.placeholder = 'Comment…'
+    var c = buildComposer({ placeholder: 'Comment…', suggestText: anchor.suggestText })
     var row = el('div', 'wt-actions')
-    var cancel = el('button', 'wt-btn', 'Cancel'); var ok = el('button', 'wt-btn wt-primary', 'Add comment')
+    var cancel = el('button', 'wt-btn', 'Cancel'); var ok = el('button', 'wt-btn wt-primary', 'Add to review')
     cancel.addEventListener('click', closeComposer)
     ok.addEventListener('click', function () {
-      var body = ta.value.trim(); if (!body) return
+      var body = c.getValue(); if (!body) return
       add({ kind: anchor.kind, path: anchor.path, side: anchor.side, line: anchor.line, startLine: anchor.startLine, body: body })
       closeComposer()
     })
     row.appendChild(cancel); row.appendChild(ok)
-    box.appendChild(ta); box.appendChild(row); td.appendChild(box); tr.appendChild(td)
+    c.root.appendChild(row); td.appendChild(c.root); tr.appendChild(td)
     afterRow.parentNode.insertBefore(tr, afterRow.nextSibling)
-    composerRow = tr; ta.focus()
+    composerRow = tr; c.focus()
   }
 
   // ---- file-level "comment on file" buttons ----
@@ -153,14 +219,14 @@
   var blockComposer = null
   function openBlockComposer(container, anchor) {
     if (blockComposer) { blockComposer.remove(); blockComposer = null }
-    var box = el('div', 'wt-composer wt-block')
-    var ta = el('textarea'); ta.placeholder = 'Comment on this file…'
+    var c = buildComposer({ placeholder: 'Comment on this file…' })
+    c.root.classList.add('wt-block')
     var row = el('div', 'wt-actions')
-    var cancel = el('button', 'wt-btn', 'Cancel'); var ok = el('button', 'wt-btn wt-primary', 'Add comment')
-    cancel.addEventListener('click', function () { box.remove(); blockComposer = null })
-    ok.addEventListener('click', function () { var b = ta.value.trim(); if (!b) return; add({ kind: 'file', path: anchor.path, body: b }); box.remove(); blockComposer = null })
-    row.appendChild(cancel); row.appendChild(ok); box.appendChild(ta); box.appendChild(row)
-    container.insertBefore(box, container.firstChild); blockComposer = box; ta.focus()
+    var cancel = el('button', 'wt-btn', 'Cancel'); var ok = el('button', 'wt-btn wt-primary', 'Add to review')
+    cancel.addEventListener('click', function () { c.root.remove(); blockComposer = null })
+    ok.addEventListener('click', function () { var b = c.getValue(); if (!b) return; add({ kind: 'file', path: anchor.path, body: b }); c.root.remove(); blockComposer = null })
+    row.appendChild(cancel); row.appendChild(ok); c.root.appendChild(row)
+    container.insertBefore(c.root, container.firstChild); blockComposer = c.root; c.focus()
   }
 
   // ---- render threads, markers, file-comment cards ----
@@ -274,8 +340,18 @@
     foot.appendChild(clear); foot.appendChild(copy); panel.appendChild(foot)
   }
 
+  function updateSidebarBadges() {
+    var counts = {}
+    comments.forEach(function (c) { if (!c.outdated) counts[c.path] = (counts[c.path] || 0) + 1 })
+    ;[].slice.call(document.querySelectorAll('.sidebar .file-link')).forEach(function (link) {
+      var badge = link.querySelector('.badge'); if (!badge) return
+      var n = counts[link.getAttribute('data-path')] || 0
+      badge.textContent = n ? '💬' + n : ''
+    })
+  }
+
   // ---- refresh everything from the store ----
-  function refresh() { clearRendered(); renderLineThreads(); renderFileCards(); renderPanel() }
+  function refresh() { clearRendered(); renderLineThreads(); renderFileCards(); renderPanel(); updateSidebarBadges() }
 
   wireFileButtons()
   refresh()

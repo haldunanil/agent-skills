@@ -150,6 +150,89 @@ export function splitPrDiff(fullDiff) {
   return map
 }
 
+// ---------- test grouping (sidebar nesting) ----------
+// Given a path, return the source path it tests, or null if it isn't a test file.
+export function sourceForTest(p) {
+  // strip an enclosing __tests__/ dir: src/__tests__/user.ts -> src/user.ts
+  const q = p.replace(/(^|\/)__tests__\//, '$1')
+  const slash = q.lastIndexOf('/')
+  const dir = slash < 0 ? '' : q.slice(0, slash + 1)
+  const base = slash < 0 ? q : q.slice(slash + 1)
+  let m = /^(.+)\.(test|spec)\.([^.]+)$/.exec(base)   // user.test.ts -> user.ts
+  if (m) return dir + m[1] + '.' + m[3]
+  m = /^test_(.+\.py)$/.exec(base)                    // test_client.py -> client.py
+  if (m) return dir + m[1]
+  m = /^(.+)_test\.go$/.exec(base)                    // server_test.go -> server.go
+  if (m) return dir + m[1] + '.go'
+  if (q !== p) return dir + base                      // __tests__/user.ts -> user.ts
+  return null
+}
+
+// Map each changed test file to the source it tests, when that source is also changed.
+export function pairTestsWithSources(paths) {
+  const set = new Set(paths)
+  const pairs = {}
+  for (const p of paths) {
+    const src = sourceForTest(p)
+    if (src && set.has(src)) pairs[p] = src
+  }
+  return pairs
+}
+
+// ---------- per-path hunk index + coverage (read→viewed roll-up) ----------
+function hunkStarts(diffText) {
+  const out = []
+  for (const line of (diffText || '').split('\n')) {
+    const h = parseHunkHeader(line)
+    if (h) out.push(h.newStart)
+  }
+  return out
+}
+
+// Per path: the hunk ids the walkthrough actually shows (unioned across all its
+// sections) and whether those cover the file's complete diff. Requires sections
+// to have been resolved first (reads s.resolvedDiff).
+export function computePathHunks(data, provider) {
+  const shown = {}                                  // path -> Set<newStart>
+  for (const ch of data.chapters) {
+    for (const s of ch.sections) {
+      if (s.kind !== 'normal' || !s.resolvedDiff) continue
+      const set = shown[s.file] || (shown[s.file] = new Set())
+      for (const ns of hunkStarts(s.resolvedDiff)) set.add(ns)
+    }
+  }
+  const out = {}
+  for (const file of Object.keys(shown)) {
+    const full = hunkStarts(provider.fileDiff(file))
+    const has = shown[file]
+    out[file] = {
+      hunkIds: [...has].sort((a, b) => a - b).map((ns) => file + '@' + ns),
+      fullyCovered: full.length > 0 && full.every((ns) => has.has(ns)),
+    }
+  }
+  return out
+}
+
+// Paths whose every shown hunk is read AND whose full diff is covered.
+// NOTE: comments.js replicates this filter inline at export time — keep them in sync.
+export function viewedFilesFrom(pathHunks, readIds) {
+  const read = new Set(readIds)
+  return Object.keys(pathHunks).filter((p) => {
+    const ph = pathHunks[p]
+    return ph.fullyCovered && ph.hunkIds.length > 0 && ph.hunkIds.every((id) => read.has(id))
+  })
+}
+
+// Attach page annotations consumed by the viewer/comments scripts. Run after
+// resolveSections so resolvedDiff is available to computePathHunks.
+export function annotate(data, provider) {
+  const paths = []
+  for (const ch of data.chapters) for (const s of ch.sections) paths.push(s.file)
+  data.testPairs = pairTestsWithSources([...new Set(paths)])
+  data.pathHunks = computePathHunks(data, provider)
+  return data
+}
+
 // Diffs come from `gh pr diff` — GitHub's canonical PR diff, correct for open,
 // merged, AND fork PRs alike. (`git diff base...head` goes empty once a PR is
 // merged via a merge commit, because the base then contains the head.) Context
@@ -248,6 +331,7 @@ export function buildDocument(data, { provider, assetsDir }) {
     e.coverage = cov
     throw e
   }
+  annotate(data, provider)
   return renderHtml(data, { assetsDir })
 }
 
