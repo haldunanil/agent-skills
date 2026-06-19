@@ -24,7 +24,7 @@ test('validateReview rejects bad repo/side/line and empty review', () => {
   assert.ok(validateReview(review({ repo: 'nope' })).some((e) => e.startsWith('repo')))
   assert.ok(validateReview(review({ comments: [{ path: 'a', side: 'UP', line: 1, body: 'x' }] })).some((e) => e.includes('.side')))
   assert.ok(validateReview(review({ comments: [{ path: 'a', side: 'RIGHT', line: 1.5, body: 'x' }] })).some((e) => e.includes('.line')))
-  assert.ok(validateReview(review({ comments: [], fileComments: [] })).some((e) => e.includes('no comments')))
+  assert.ok(validateReview(review({ comments: [], fileComments: [] })).some((e) => e.includes('nothing to post')))
 })
 
 test('validateReview rejects startLine greater than line', () => {
@@ -88,4 +88,15 @@ test('postReview reports what already posted on partial failure', () => {
     assert.equal(e.posted.length, 1)                             // the review posted before the file comment failed
     return true
   })
+})
+
+test('validateReview accepts a viewed-only review (no comments)', () => {
+  const r = { repo: 'acme/widgets', pr: 5, commit: 'abc123', viewedFiles: ['src/a.ts'] }
+  assert.deepEqual(validateReview(r), [])
+})
+
+test('validateReview rejects non-string viewedFiles entries and a fully empty review', () => {
+  assert.ok(validateReview(review({ viewedFiles: [123] })).some((e) => e.startsWith('viewedFiles[0]')))
+  const empty = { repo: 'acme/widgets', pr: 5, commit: 'abc123', comments: [], fileComments: [], viewedFiles: [] }
+  assert.ok(validateReview(empty).some((e) => e.includes('nothing to post')))
 })

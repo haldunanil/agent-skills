@@ -35,7 +35,10 @@ export function validateReview(r) {
     if (!isStr(c?.path)) err(`${p}.path`, 'must be a string')
     if (!isStr(c?.body)) err(`${p}.body`, 'must be a non-empty string')
   })
-  if (comments.length === 0 && fileComments.length === 0) err('<root>', 'no comments to post')
+  const viewedFiles = r.viewedFiles ?? []
+  if (!Array.isArray(viewedFiles)) err('viewedFiles', 'must be an array')
+  else viewedFiles.forEach((v, i) => { if (!isStr(v)) err(`viewedFiles[${i}]`, 'must be a non-empty string') })
+  if (comments.length === 0 && fileComments.length === 0 && viewedFiles.length === 0) err('<root>', 'nothing to post')
   return errors
 }
 
