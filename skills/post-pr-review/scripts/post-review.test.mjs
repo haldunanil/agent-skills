@@ -135,6 +135,7 @@ test('markFilesViewed reports what was marked when a later mutation fails', () =
   }
   assert.throws(() => markFilesViewed({ repo: 'a/b', pr: 1, viewedFiles: ['p1', 'p2'] }, { graphql }), (e) => {
     assert.deepEqual(e.viewed, ['p1'])
+    assert.match(e.message, /gh mark-viewed failed/)
     return true
   })
 })
