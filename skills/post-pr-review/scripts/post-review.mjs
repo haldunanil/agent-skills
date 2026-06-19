@@ -99,6 +99,43 @@ export function postReview(r, { gh = ghPost } = {}) {
   return posted
 }
 
+// Default GraphQL runner: `gh api graphql -f query=… (-F int | -f string)…`.
+function ghGraphql(query, fields) {
+  const args = ['api', 'graphql', '-f', 'query=' + query]
+  for (const k of Object.keys(fields)) {
+    const v = fields[k]
+    args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`)
+  }
+  const out = execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+  return out.trim() ? JSON.parse(out) : {}
+}
+
+export function prNodeIdQuery() {
+  return 'query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){id}}}'
+}
+export function markViewedMutation() {
+  return 'mutation($id:ID!,$path:String!){markFileAsViewed(input:{pullRequestId:$id,path:$path}){clientMutationId}}'
+}
+
+// Mark each path viewed on the PR (GitHub "Files changed" checkbox). Mark-only.
+export function markFilesViewed(r, { graphql = ghGraphql } = {}) {
+  const viewed = r.viewedFiles ?? []
+  if (!viewed.length) return []
+  const [owner, name] = r.repo.split('/')
+  const idRes = graphql(prNodeIdQuery(), { owner, name, number: r.pr })
+  const id = idRes && idRes.data && idRes.data.repository && idRes.data.repository.pullRequest && idRes.data.repository.pullRequest.id
+  if (!id) throw new Error(`could not resolve PR node id for ${r.repo}#${r.pr}`)
+  const done = []
+  try {
+    for (const path of viewed) { graphql(markViewedMutation(), { id, path }); done.push(path) }
+  } catch (e) {
+    const err = new Error('gh mark-viewed failed: ' + ((e.stderr || e.message || '') + '').trim())
+    err.viewed = done
+    throw err
+  }
+  return done
+}
+
 function main(argv) {
   const file = argv[0]
   if (!file) { console.error('usage: post-review.mjs <review.json>'); process.exit(2) }

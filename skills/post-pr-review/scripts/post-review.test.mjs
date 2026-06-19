@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { validateReview, reviewApiArgs, fileCommentApiArgs, postReview, maybe422Hint } from './post-review.mjs'
+import { validateReview, reviewApiArgs, fileCommentApiArgs, postReview, maybe422Hint, markFilesViewed } from './post-review.mjs'
 
 function review(over = {}) {
   return Object.assign({
@@ -99,4 +99,42 @@ test('validateReview rejects non-string viewedFiles entries and a fully empty re
   assert.ok(validateReview(review({ viewedFiles: [123] })).some((e) => e.startsWith('viewedFiles[0]')))
   const empty = { repo: 'acme/widgets', pr: 5, commit: 'abc123', comments: [], fileComments: [], viewedFiles: [] }
   assert.ok(validateReview(empty).some((e) => e.includes('nothing to post')))
+})
+
+function fakeGraphql() {
+  const calls = []
+  const graphql = (query, fields) => {
+    calls.push({ query, fields })
+    if (/pullRequest\(number/.test(query)) return { data: { repository: { pullRequest: { id: 'PR_node_1' } } } }
+    return { data: { markFileAsViewed: { clientMutationId: null } } }
+  }
+  return { graphql, calls }
+}
+
+test('markFilesViewed resolves the PR id once then marks each path', () => {
+  const { graphql, calls } = fakeGraphql()
+  const done = markFilesViewed({ repo: 'acme/widgets', pr: 5, viewedFiles: ['src/a.ts', 'src/b.ts'] }, { graphql })
+  assert.deepEqual(done, ['src/a.ts', 'src/b.ts'])
+  assert.equal(calls.length, 3)                                  // 1 id query + 2 mutations
+  assert.deepEqual(calls[0].fields, { owner: 'acme', name: 'widgets', number: 5 })
+  assert.equal(calls[1].fields.id, 'PR_node_1')
+  assert.equal(calls[1].fields.path, 'src/a.ts')
+})
+
+test('markFilesViewed is a no-op when viewedFiles is empty', () => {
+  const { graphql, calls } = fakeGraphql()
+  assert.deepEqual(markFilesViewed({ repo: 'a/b', pr: 1, viewedFiles: [] }, { graphql }), [])
+  assert.equal(calls.length, 0)
+})
+
+test('markFilesViewed reports what was marked when a later mutation fails', () => {
+  let n = 0
+  const graphql = (query) => {
+    if (/pullRequest\(number/.test(query)) return { data: { repository: { pullRequest: { id: 'X' } } } }
+    n++; if (n === 2) throw new Error('boom'); return {}
+  }
+  assert.throws(() => markFilesViewed({ repo: 'a/b', pr: 1, viewedFiles: ['p1', 'p2'] }, { graphql }), (e) => {
+    assert.deepEqual(e.viewed, ['p1'])
+    return true
+  })
 })
