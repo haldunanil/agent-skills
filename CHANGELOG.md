@@ -1,5 +1,19 @@
 # hal-agent-skills
 
+## 0.5.0
+
+### Minor Changes
+
+- [#12](https://github.com/haldunanil/hal-agent-skills/pull/12) [`8307867`](https://github.com/haldunanil/hal-agent-skills/commit/83078670c14312a708d4d410b37dcc085c6684ff) Thanks [@haldunanil](https://github.com/haldunanil)! - pr-walkthrough viewer overhaul: cleaner sidebar with test nesting, per-hunk collapse with a per-path read→viewed roll-up, sticky hunk headers, and a GitHub-style Markdown comment composer with suggestions. The exported review now includes a `viewedFiles` list (consumed by post-pr-review to mark files viewed on GitHub).
+
+- [#15](https://github.com/haldunanil/hal-agent-skills/pull/15) [`ad0cbd8`](https://github.com/haldunanil/hal-agent-skills/commit/ad0cbd834c767c50416ab0c160d36ede1e5dd3a6) Thanks [@haldunanil](https://github.com/haldunanil)! - Remove the `pr-walkthrough` and `post-pr-review` skills. `pr-walkthrough` has moved to the standalone Difftrail plugin (https://github.com/difftrail/plugin), which hosts the walkthrough viewer and handles uploads via its own MCP server; `post-pr-review` only consumed pr-walkthrough's exported review JSON, so it goes with it.
+
+### Patch Changes
+
+- [#11](https://github.com/haldunanil/hal-agent-skills/pull/11) [`9ae84e0`](https://github.com/haldunanil/hal-agent-skills/commit/9ae84e0f9eec4ef74af8fabb6d39132a4e47aa82) Thanks [@haldunanil](https://github.com/haldunanil)! - post-pr-review: recover from transient/bare 422 GitHub API failures. SKILL.md now tells the agent to rerun with network escalation on sandbox failures, and to rerun once with `GH_DEBUG=api` on a bare `422 Unprocessable Entity` (only when nothing was posted yet), without ever re-posting a payload whose review already landed. The script prints a matching hint on bare 422s.
+
+- [#14](https://github.com/haldunanil/hal-agent-skills/pull/14) [`d4be865`](https://github.com/haldunanil/hal-agent-skills/commit/d4be865676a269b7b13add3e6d7ccaba963bd122) Thanks [@haldunanil](https://github.com/haldunanil)! - Fix pr-walkthrough hunk header rendering: the `@@ … @@` separator was laid out with `display:flex` directly on the `<td>`, which voids its `colSpan` under `table-layout:fixed` and collapsed the header into a one-character-per-line column. The flex layout now lives on an inner wrapper so the cell spans the full width. Also: checking a file's "Viewed" control (or its sidebar checkbox) now collapses the whole file block GitHub-style, and unchecking expands it.
+
 ## 0.4.0
 
 ### Minor Changes
