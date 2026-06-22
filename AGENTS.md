@@ -85,7 +85,7 @@ Skills are loaded on-demand — only the skill name and description are loaded a
 
 ### Script Requirements
 
-Bash is the default. Reach for a Node script (`.mjs`) when the task needs it — e.g. robust JSON handling or templating that's fragile in shell. The `pr-walkthrough` skill is the reference example: it ships `scripts/build-walkthrough.mjs` plus an `assets/` directory of HTML/CSS/JS it validates and inlines. Keep Node scripts **stdlib-only** (no npm dependencies) so they run wherever the skill is installed without a `node_modules`.
+Bash is the default. Reach for a Node script (`.mjs`) when the task needs it — e.g. robust JSON handling or templating that's fragile in shell. Keep Node scripts **stdlib-only** (no npm dependencies) so they run wherever the skill is installed without a `node_modules`.
 
 **Bash scripts:**
 
